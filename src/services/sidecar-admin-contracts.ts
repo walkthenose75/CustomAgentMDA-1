@@ -1,7 +1,9 @@
 import type {
   AdminAccessContext,
   AgentResolution,
+  DiscoveredAgent,
   DeploymentImpact,
+  RuntimeEnvironmentContext,
   SidecarConfiguration,
   SidecarDraft,
   SidecarProgressCallback,
@@ -10,9 +12,11 @@ import type {
 
 export interface SidecarAdministrationProvider {
   getAccessContext(): Promise<AdminAccessContext>;
+  getRuntimeEnvironmentContext(): Promise<RuntimeEnvironmentContext>;
   listConfigurations(): Promise<SidecarConfiguration[]>;
   getConfiguration(id: string): Promise<SidecarConfiguration | null>;
   discoverTargetApps(): Promise<TargetModelDrivenApp[]>;
+  discoverAgents(): Promise<DiscoveredAgent[]>;
   resolveManualTargetApp(appId: string): Promise<TargetModelDrivenApp>;
   resolveAgentLink(connectionString: string, environmentId: string): Promise<AgentResolution>;
   previewDeployment(draft: SidecarDraft): Promise<DeploymentImpact[]>;

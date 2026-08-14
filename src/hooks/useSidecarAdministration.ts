@@ -9,6 +9,8 @@ export const sidecarQueryKeys = {
   configurations: ['sidecar-admin', 'configurations'] as const,
   configuration: (id: string) => ['sidecar-admin', 'configurations', id] as const,
   targetApps: ['sidecar-admin', 'target-apps'] as const,
+  runtimeEnvironment: ['sidecar-admin', 'runtime-environment'] as const,
+  agents: ['sidecar-admin', 'agents'] as const,
 };
 
 function useConfigurationMutation<TInput>(
@@ -51,6 +53,21 @@ export function useSidecarConfiguration(id: string | undefined) {
 
 export function useTargetApps() {
   return useQuery({ queryKey: sidecarQueryKeys.targetApps, queryFn: () => provider.discoverTargetApps() });
+}
+
+export function useRuntimeEnvironment() {
+  return useQuery({
+    queryKey: sidecarQueryKeys.runtimeEnvironment,
+    queryFn: () => provider.getRuntimeEnvironmentContext(),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+export function useAgents() {
+  return useQuery({
+    queryKey: sidecarQueryKeys.agents,
+    queryFn: () => provider.discoverAgents(),
+  });
 }
 
 export function useResolveManualTargetApp() {

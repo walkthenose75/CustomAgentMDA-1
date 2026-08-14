@@ -29,7 +29,7 @@ Everything below is done through **solution import** and the **administration ap
 ### 2. Prepare the prerequisites
 
 - A Power Platform environment with Dataverse where you are a **System Administrator**.
-- A **published Copilot Studio agent** in that environment. For a Standard harness agent, copy its **Microsoft 365 Agents SDK connection string** (Copilot Studio → your agent → Channels → Web app / Agents SDK) and note its environment ID. For a GitHub Copilot harness agent, note only its **environment ID** and **schema name**; the administration app constructs the agentic runtime URL.
+- A **published custom Copilot Studio agent** in that environment. The administration app discovers compatible Standard and GitHub Copilot harness agents, identifies their harness from Dataverse metadata, and constructs the correct runtime URL.
 - A **Microsoft Entra app registration** for the side pane's browser sign-in. Follow the dedicated [Entra app registration guide (PDF)](docs/user-guides/HR-Management-App-Guide-Entra-App-Registration.pdf) ([Word](docs/user-guides/HR-Management-App-Guide-Entra-App-Registration.docx)). In short: single-tenant **SPA**, redirect URI `https://<your-org>.crm.dynamics.com/WebResources/maftagsc_/copilot/authRedirect.html`, delegated **Power Platform API** permission `CopilotStudio.Copilots.Invoke` with **admin consent**, and **no client secret**.
 
 ### 3. Import the solution
@@ -42,8 +42,8 @@ Open the **Agent Sidecar** app and run the wizard:
 
 1. **Application** — pick the model-driven app to add the sidecar to.
 2. **Tables & forms** — choose the tables; expand any table to select specific forms (the **Information** form is selected by default, others are optional).
-3. **Agent** — choose Standard or GitHub Copilot harness. Standard agents require the full Agents SDK connection string and environment ID; GitHub Copilot harness agents require only the environment ID and schema name.
-4. **Identity** — enter the SPA app registration's **client ID** and **tenant ID**.
+3. **Agent** — choose a compatible published custom agent from the current environment. The harness, schema name, environment ID, and runtime URL are resolved automatically.
+4. **Identity** — paste only the SPA app registration's **client ID**. The tenant ID and Dataverse organization URL come from the running Code App context; the wizard links directly to Microsoft Entra App registrations.
 5. **Review & Deploy** — deploy. The app adds the sidecar to the selected forms, publishes, and verifies the result. From the same app you can later disable, reconcile drift, or uninstall — each with live progress and a downloadable report.
 
 ### 5. Use it
@@ -155,7 +155,7 @@ The side pane preserves the user's identity end to end:
 4. The agent accesses its knowledge as that user, so the user's existing permissions remain authoritative.
 5. Any live Dataverse reads remain subject to table, row, and field security.
 
-Access tokens are handled by MSAL and are not written to URLs, logs, source files, or solution configuration. Application ID, tenant ID, environment ID, and agent schema name are identifiers, not secrets.
+Access tokens are handled by MSAL and are not written to URLs, logs, source files, or solution configuration. Application ID, tenant ID, environment ID, and agent schema name are identifiers, not secrets. The app reads tenant and environment identifiers from the authenticated Power Apps runtime context.
 
 ### Microsoft Entra app registration
 
@@ -170,7 +170,7 @@ The guide covers the settings that make the delegated Agents SDK connection work
 2. Add the exact redirect URI: `https://<your-org>.crm.dynamics.com/WebResources/maftagsc_/copilot/authRedirect.html`.
 3. Add the delegated **Power Platform API** permission `CopilotStudio.Copilots.Invoke`.
 4. Grant tenant admin consent for that delegated permission.
-5. Copy the non-secret Application ID and tenant ID into the wizard's Identity step.
+5. Copy the non-secret Application ID into the wizard's Identity step. The tenant ID is detected automatically.
 6. Leave **Certificates & secrets** empty — the browser uses authorization code with PKCE and must never receive a client secret.
 
 The guide also includes a configuration worksheet, validation checklist, and troubleshooting for redirect URI, consent, and agent-connection failures.

@@ -29,44 +29,37 @@ describe('Agent Sidecar Administration', () => {
     expect(screen.getByLabelText('Selected')).toBeTruthy();
   });
 
-  it('shows the exact redirect URI and blocks invalid identity GUIDs', async () => {
+  it('uses runtime environment context and only asks for the app registration ID', async () => {
     render(<App />, { initialRoute: '/new' });
     fireEvent.click(await screen.findByRole('button', { name: /Sales Workspace/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    fireEvent.change(screen.getByRole('textbox', { name: /Microsoft 365 Agents SDK connection string/ }), {
-      target: { value: 'https://1234567890.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/contoso_FieldGuide/conversations?api-version=2022-03-01-preview' },
-    });
-    fireEvent.change(screen.getByRole('textbox', { name: /Environment ID/ }), {
-      target: { value: 'f9b87f8b-0abf-e629-affb-b13195d1ed14' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Resolve agent' }));
-    expect((await screen.findAllByText('Field Guide')).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('combobox', { name: /Published Copilot Studio agent/ }));
+    fireEvent.click(await screen.findByRole('option', { name: /Field Guide — Standard harness/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    fireEvent.change(screen.getByRole('textbox', { name: /Tenant ID/ }), { target: { value: 'not-a-guid' } });
+    expect(screen.getByRole('textbox', { name: /Current tenant/ }).getAttribute('value')).toBe('d92190b9-98e7-46da-8b11-580e06c7d15d');
+    expect(screen.getByRole('textbox', { name: /Redirect URI/ }).getAttribute('value')).toBe(
+      'https://carremacodeapps.crm.dynamics.com/WebResources/maftagsc_/copilot/authRedirect.html',
+    );
+    expect(screen.getByRole('link', { name: /Open App registrations/ }).getAttribute('href')).toContain('entra.microsoft.com');
+    fireEvent.change(screen.getByRole('textbox', { name: /Public-client Application ID/ }), { target: { value: 'not-a-guid' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
-    expect(await screen.findByText('Tenant ID must be a valid GUID.')).toBeTruthy();
+    expect(await screen.findByText('Public-client Application ID must be a valid GUID.')).toBeTruthy();
   });
 
-  it('constructs the connection string for a GitHub Copilot harness agent', async () => {
+  it('discovers and selects a GitHub Copilot harness agent', async () => {
     render(<App />, { initialRoute: '/new' });
     fireEvent.click(await screen.findByRole('button', { name: /Sales Workspace/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
-    fireEvent.click(screen.getByRole('radio', { name: 'GitHub Copilot harness' }));
-    expect(screen.queryByRole('textbox', { name: /Microsoft 365 Agents SDK connection string/ })).toBeNull();
-    fireEvent.change(screen.getByRole('textbox', { name: /Agent schema name/ }), {
-      target: { value: 'contoso_FieldGuide' },
-    });
-    fireEvent.change(screen.getByRole('textbox', { name: /Environment ID/ }), {
-      target: { value: 'f9b87f8b-0abf-e629-affb-b13195d1ed14' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Resolve agent' }));
-    expect((await screen.findAllByText('Field Guide')).length).toBeGreaterThan(0);
+    expect(screen.getByRole('textbox', { name: /Current environment/ }).getAttribute('value')).toBe('f9b87f8b-0abf-e629-affb-b13195d1ed14');
+    fireEvent.click(screen.getByRole('combobox', { name: /Published Copilot Studio agent/ }));
+    fireEvent.click(await screen.findByRole('option', { name: /Insights and actions — GitHub Copilot harness/ }));
+    expect((await screen.findAllByText(/contoso_InsightsAndActions · GitHub Copilot harness · published/)).length).toBeGreaterThan(0);
   });
 
   it('opens a sidecar and automatically validates health', async () => {

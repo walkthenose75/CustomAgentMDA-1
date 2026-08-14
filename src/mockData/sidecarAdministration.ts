@@ -1,5 +1,7 @@
 import type {
   AdminAccessContext,
+  DiscoveredAgent,
+  RuntimeEnvironmentContext,
   SidecarConfiguration,
   TargetForm,
   TargetModelDrivenApp,
@@ -36,6 +38,33 @@ export const mockAdminAccess: AdminAccessContext = {
   displayName: 'Marty Carreras',
   isSystemAdministrator: true,
 };
+
+export const mockRuntimeEnvironment: RuntimeEnvironmentContext = {
+  environmentId: 'f9b87f8b-0abf-e629-affb-b13195d1ed14',
+  tenantId: 'd92190b9-98e7-46da-8b11-580e06c7d15d',
+  dataverseOrgUrl: 'https://carremacodeapps.crm.dynamics.com',
+};
+
+export const mockAgents: DiscoveredAgent[] = [
+  {
+    id: 'mock-standard-agent',
+    displayName: 'Field Guide',
+    schemaName: 'contoso_FieldGuide',
+    environmentId: mockRuntimeEnvironment.environmentId,
+    published: true,
+    harness: 'standard',
+    connectionString: 'https://f9b87f8b0abfe629affbb13195d1ed.14.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/contoso_FieldGuide/conversations?api-version=2022-03-01-preview',
+  },
+  {
+    id: 'mock-github-agent',
+    displayName: 'Insights and actions',
+    schemaName: 'contoso_InsightsAndActions',
+    environmentId: mockRuntimeEnvironment.environmentId,
+    published: true,
+    harness: 'githubCopilot',
+    connectionString: 'https://f9b87f8b0abfe629affbb13195d1ed.14.environment.api.powerplatform.com/copilotstudio/agenticruntime/3p/dataverse-backed/authenticated/bots/contoso_InsightsAndActions?api-version=1',
+  },
+];
 
 export const mockTargetApps: TargetModelDrivenApp[] = [
   {

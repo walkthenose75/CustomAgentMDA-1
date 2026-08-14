@@ -11,9 +11,11 @@ export function createSidecarAdministrationProvider(): SidecarAdministrationProv
 
   return {
     getAccessContext: () => provider.then((value) => value.getAccessContext()),
+    getRuntimeEnvironmentContext: () => provider.then((value) => value.getRuntimeEnvironmentContext()),
     listConfigurations: () => provider.then((value) => value.listConfigurations()),
     getConfiguration: (id) => provider.then((value) => value.getConfiguration(id)),
     discoverTargetApps: () => provider.then((value) => value.discoverTargetApps()),
+    discoverAgents: () => provider.then((value) => value.discoverAgents()),
     resolveManualTargetApp: (appId) => provider.then((value) => value.resolveManualTargetApp(appId)),
     resolveAgentLink: (connectionString, environmentId) => provider.then((value) => value.resolveAgentLink(connectionString, environmentId)),
     previewDeployment: (draft) => provider.then((value) => value.previewDeployment(draft)),

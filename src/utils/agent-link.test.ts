@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildGitHubCopilotHarnessConnectionString, isGuid, parseCopilotStudioConnectionString } from '@/utils/agent-link';
+import {
+  buildGitHubCopilotHarnessConnectionString,
+  buildStandardHarnessConnectionString,
+  classifyCopilotStudioHarness,
+  isGuid,
+  isMicrosoftSystemAgent,
+  parseCopilotStudioConnectionString,
+} from '@/utils/agent-link';
 
 const environmentId = 'f9b87f8b-0abf-e629-affb-b13195d1ed14';
 const connectionString = 'https://1234567890.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/contoso_FieldGuide/conversations?api-version=2022-03-01-preview';
@@ -51,6 +58,35 @@ describe('buildGitHubCopilotHarnessConnectionString', () => {
     expect(buildGitHubCopilotHarnessConnectionString(environmentId, 'contoso_FieldGuide')).toBe(
       'https://f9b87f8b0abfe629affbb13195d1ed.14.environment.api.powerplatform.com/copilotstudio/agenticruntime/3p/dataverse-backed/authenticated/bots/contoso_FieldGuide?api-version=1',
     );
+  });
+
+  describe('buildStandardHarnessConnectionString', () => {
+    it('builds the published-agent URL from the environment ID and schema name', () => {
+      expect(buildStandardHarnessConnectionString(environmentId, 'contoso_FieldGuide')).toBe(
+        'https://f9b87f8b0abfe629affbb13195d1ed.14.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/contoso_FieldGuide/conversations?api-version=2022-03-01-preview',
+      );
+    });
+  });
+
+  describe('classifyCopilotStudioHarness', () => {
+    it('recognizes current and legacy GitHub Copilot harness markers', () => {
+      expect(classifyCopilotStudioHarness('{"recognizer":{"$kind":"CLICopilotRecognizer"}}')).toBe('githubCopilot');
+      expect(classifyCopilotStudioHarness('{"recognizer":{"$kind":"CLIAgentRecognizer"}}')).toBe('githubCopilot');
+    });
+
+    it('recognizes connectable Standard harness agents and rejects incompatible metadata', () => {
+      expect(classifyCopilotStudioHarness('{"isAgentConnectable":true,"recognizer":{"$kind":"GenerativeAIRecognizer"}}')).toBe('standard');
+      expect(classifyCopilotStudioHarness('{"recognizer":{"$kind":"GenerativeAIRecognizer"}}')).toBeNull();
+      expect(classifyCopilotStudioHarness('not-json')).toBeNull();
+    });
+  });
+
+  describe('isMicrosoftSystemAgent', () => {
+    it('hides Microsoft system schemas and internal agents without hiding custom schemas', () => {
+      expect(isMicrosoftSystemAgent('msdyn_salesCopilot', 'Copilot in Dynamics 365 Sales')).toBe(true);
+      expect(isMicrosoftSystemAgent('contoso_FieldGuide', '[Internal] Helper')).toBe(true);
+      expect(isMicrosoftSystemAgent('contoso_FieldGuide', 'Field Guide')).toBe(false);
+    });
   });
 
   it('rejects invalid environment IDs and schema names', () => {

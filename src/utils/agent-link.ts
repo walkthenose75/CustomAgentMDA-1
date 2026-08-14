@@ -6,6 +6,13 @@ const githubCopilotHarnessPath = ['copilotstudio', 'agenticruntime', '3p', 'data
 
 export type CopilotStudioHarness = 'standard' | 'githubCopilot';
 
+interface BotConfiguration {
+  isAgentConnectable?: boolean;
+  recognizer?: {
+    $kind?: string;
+  };
+}
+
 function valueAfterSegment(segments: string[], segment: string): string | undefined {
   const index = segments.findIndex((item) => item.toLowerCase() === segment.toLowerCase());
   return index >= 0 ? segments[index + 1] : undefined;
@@ -68,6 +75,18 @@ export function parseCopilotStudioConnectionString(connectionString: string, env
 }
 
 export function buildGitHubCopilotHarnessConnectionString(environmentId: string, schemaName: string): string {
+  return buildCopilotStudioConnectionString(environmentId, schemaName, 'githubCopilot');
+}
+
+export function buildStandardHarnessConnectionString(environmentId: string, schemaName: string): string {
+  return buildCopilotStudioConnectionString(environmentId, schemaName, 'standard');
+}
+
+export function buildCopilotStudioConnectionString(
+  environmentId: string,
+  schemaName: string,
+  harness: CopilotStudioHarness,
+): string {
   const normalizedEnvironmentId = environmentId.trim().toLowerCase();
   const normalizedSchemaName = schemaName.trim();
   if (!guidPattern.test(normalizedEnvironmentId)) {
@@ -76,7 +95,32 @@ export function buildGitHubCopilotHarnessConnectionString(environmentId: string,
   if (!schemaPattern.test(normalizedSchemaName)) {
     throw new Error('Enter a valid Copilot Studio agent schema name.');
   }
-  return `https://${getPowerPlatformEnvironmentApiHost(normalizedEnvironmentId)}/copilotstudio/agenticruntime/3p/dataverse-backed/authenticated/bots/${normalizedSchemaName}?api-version=1`;
+  const host = getPowerPlatformEnvironmentApiHost(normalizedEnvironmentId);
+  return harness === 'githubCopilot'
+    ? `https://${host}/copilotstudio/agenticruntime/3p/dataverse-backed/authenticated/bots/${normalizedSchemaName}?api-version=1`
+    : `https://${host}/copilotstudio/dataverse-backed/authenticated/bots/${normalizedSchemaName}/conversations?api-version=2022-03-01-preview`;
+}
+
+export function classifyCopilotStudioHarness(configuration: string | undefined): CopilotStudioHarness | null {
+  if (!configuration) return null;
+  let parsed: BotConfiguration;
+  try {
+    parsed = JSON.parse(configuration) as BotConfiguration;
+  } catch {
+    return null;
+  }
+  const recognizerKind = parsed.recognizer?.$kind;
+  if (recognizerKind === 'CLICopilotRecognizer' || recognizerKind === 'CLIAgentRecognizer') {
+    return 'githubCopilot';
+  }
+  return parsed.isAgentConnectable === true ? 'standard' : null;
+}
+
+export function isMicrosoftSystemAgent(schemaName: string, displayName: string | undefined): boolean {
+  const normalizedSchema = schemaName.trim().toLowerCase();
+  return normalizedSchema.startsWith('msdyn_')
+    || normalizedSchema.startsWith('mspva_')
+    || displayName?.trim().startsWith('[Internal]') === true;
 }
 
 function getPowerPlatformEnvironmentApiHost(environmentId: string): string {

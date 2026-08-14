@@ -3,18 +3,18 @@ import {
   Button,
   Card,
   Checkbox,
+  Dropdown,
   Field as FluentField,
   Input,
+  Link,
   MessageBar,
   MessageBarBody,
   MessageBarTitle,
+  Option,
   ProgressBar,
-  Radio,
-  RadioGroup,
   SpinButton,
   Spinner,
   Text,
-  Textarea,
   Title1,
   Title2,
   Title3,
@@ -25,7 +25,6 @@ import {
 import {
   ArrowLeftRegular,
   ArrowRightRegular,
-  BotRegular,
   CheckmarkCircleFilled,
   CheckmarkCircleRegular,
   ChevronDownRegular,
@@ -35,14 +34,15 @@ import {
   ShieldKeyholeRegular,
 } from '@fluentui/react-icons';
 import type {
-  AgentResolution,
+  DiscoveredAgent,
   DeploymentImpact,
+  RuntimeEnvironmentContext,
   SidecarDraft,
   SidecarProgressCallback,
   TargetModelDrivenApp,
   TargetTable,
 } from '@/types/sidecar-admin-models';
-import { buildGitHubCopilotHarnessConnectionString, isGuid, type CopilotStudioHarness } from '@/utils/agent-link';
+import { isGuid } from '@/utils/agent-link';
 import { defaultFormId } from '@/lib/target-forms';
 import { DataverseFieldLabel } from '@/components/DataverseFieldLabel';
 import { OperationProgress } from '@/components/OperationProgress/OperationProgress';
@@ -120,24 +120,28 @@ const useStyles = makeStyles({
 
 interface SidecarWizardProps {
   apps?: TargetModelDrivenApp[];
+  runtimeEnvironment?: RuntimeEnvironmentContext;
+  agents?: DiscoveredAgent[];
   appsLoading: boolean;
+  agentsLoading: boolean;
   busy: boolean;
   error?: string;
   onCancel: () => void;
   onResolveManualApp: (appId: string) => Promise<TargetModelDrivenApp>;
-  onResolveAgent: (connectionString: string, environmentId: string) => Promise<AgentResolution>;
   onPreview: (draft: SidecarDraft) => Promise<DeploymentImpact[]>;
   onDeploy: (draft: SidecarDraft, onProgress: SidecarProgressCallback) => Promise<void>;
 }
 
 export function SidecarWizard({
   apps = [],
+  runtimeEnvironment,
+  agents = [],
   appsLoading,
+  agentsLoading,
   busy,
   error,
   onCancel,
   onResolveManualApp,
-  onResolveAgent,
   onPreview,
   onDeploy,
 }: SidecarWizardProps) {
@@ -147,12 +151,7 @@ export function SidecarWizard({
   const [targetApp, setTargetApp] = useState<TargetModelDrivenApp>();
   const [tables, setTables] = useState<TargetTable[]>([]);
   const [manualAppId, setManualAppId] = useState('');
-  const [agentHarness, setAgentHarness] = useState<CopilotStudioHarness>('standard');
-  const [agentLink, setAgentLink] = useState('');
-  const [agentSchemaName, setAgentSchemaName] = useState('');
-  const [agentEnvironmentId, setAgentEnvironmentId] = useState('');
-  const [agent, setAgent] = useState<AgentResolution>();
-  const [tenantId, setTenantId] = useState('');
+  const [agent, setAgent] = useState<DiscoveredAgent>();
   const [clientId, setClientId] = useState('');
   const [name, setName] = useState('');
   const [paneTitle, setPaneTitle] = useState('');
@@ -173,6 +172,9 @@ export function SidecarWizard({
       table.displayName.toLowerCase().includes(queryText) || table.logicalName.toLowerCase().includes(queryText),
     );
   }, [tables, tableSearch]);
+  const redirectUri = runtimeEnvironment
+    ? `${runtimeEnvironment.dataverseOrgUrl}/WebResources/maftagsc_/copilot/authRedirect.html`
+    : '';
   // Enabling a table guarantees at least one selected form (Information, else the first).
   const withEnsuredForm = (table: TargetTable): TargetTable => {
     if (table.forms.some((form) => form.enabled)) return table;
@@ -207,20 +209,20 @@ export function SidecarWizard({
     });
   };
   const draft = useMemo<SidecarDraft | undefined>(() => {
-    if (!targetApp || !agent) return undefined;
+    if (!targetApp || !agent || !runtimeEnvironment) return undefined;
     return {
       name,
       targetApp,
       tables,
       agent,
-      agentConnectionString: agentLink,
-      tenantId,
+      agentConnectionString: agent.connectionString,
+      tenantId: runtimeEnvironment.tenantId,
       publicClientApplicationId: clientId,
       paneTitle,
       paneWidth,
       bindingSolutionUniqueName: solutionName,
     };
-  }, [agent, agentLink, clientId, name, paneTitle, paneWidth, solutionName, tables, targetApp, tenantId]);
+  }, [agent, clientId, name, paneTitle, paneWidth, runtimeEnvironment, solutionName, tables, targetApp]);
 
   const selectApp = (app: TargetModelDrivenApp) => {
     setTargetApp(app);
@@ -236,12 +238,12 @@ export function SidecarWizard({
   const validateStep = (): string | undefined => {
     if (step === 0 && !targetApp) return 'Select a Model-driven App or resolve an App ID.';
     if (step === 1 && enabledTableCount === 0) return 'Enable at least one table.';
-    if (step === 2 && !agent) return 'Resolve the published agent using its Microsoft 365 Agents SDK connection string.';
+    if (step === 2 && !agent) return 'Select a compatible published Copilot Studio agent.';
     if (step === 3 && !name.trim()) return 'Configuration name is required.';
     if (step === 3 && !paneTitle.trim()) return 'Pane title is required.';
-    if (step === 3 && !isGuid(tenantId)) return 'Tenant ID must be a valid GUID.';
     if (step === 3 && !isGuid(clientId)) return 'Public-client Application ID must be a valid GUID.';
     if (step === 3 && !solutionName.trim()) return 'Target Binding solution is required.';
+    if (step === 3 && !runtimeEnvironment) return 'The current Power Apps environment context is required before deployment can be previewed.';
     return undefined;
   };
 
@@ -263,30 +265,6 @@ export function SidecarWizard({
   const resolveManual = async () => {
     try { selectApp(await onResolveManualApp(manualAppId)); }
     catch (caught) { setLocalError(caught instanceof Error ? caught.message : 'App discovery failed.'); }
-  };
-
-  const resolveAgent = async () => {
-    if (!isGuid(agentEnvironmentId)) {
-      setLocalError('Enter a valid Power Platform Environment ID.');
-      return;
-    }
-    let connectionString = agentLink;
-    try {
-      if (agentHarness === 'githubCopilot') {
-        connectionString = buildGitHubCopilotHarnessConnectionString(agentEnvironmentId, agentSchemaName);
-        setAgentLink(connectionString);
-      }
-      setAgent(await onResolveAgent(connectionString, agentEnvironmentId));
-      setLocalError(undefined);
-    }
-    catch (caught) { setAgent(undefined); setLocalError(caught instanceof Error ? caught.message : 'Agent resolution failed.'); }
-  };
-  const changeHarness = (value: CopilotStudioHarness) => {
-    setAgentHarness(value);
-    setAgent(undefined);
-    setAgentLink('');
-    setAgentSchemaName('');
-    setLocalError(undefined);
   };
 
   const deploy = async () => {
@@ -419,27 +397,32 @@ export function SidecarWizard({
 
           {step === 2 && (
             <div className={styles.stack}>
-              <div><Title2 as="h2">Connect the agent</Title2><Text className={styles.muted}>Choose the harness used by the published Copilot Studio agent.</Text></div>
-              <ConfigField label="Agent harness" required>
-                <RadioGroup value={agentHarness} onChange={(_, data) => changeHarness(data.value as CopilotStudioHarness)}>
-                  <Radio value="standard" label="Standard harness" />
-                  <Radio value="githubCopilot" label="GitHub Copilot harness" />
-                </RadioGroup>
-              </ConfigField>
-              {agentHarness === 'standard' ? (
-                <ConfigField field="agentConnectionString" label="Microsoft 365 Agents SDK connection string" hint="In Copilot Studio, go to Channels > Web app and copy the Microsoft 365 Agents SDK connection string—not the public iframe embed code." required>
-                  <Textarea resize="vertical" value={agentLink} onChange={(_, data) => { setAgentLink(data.value); setAgent(undefined); }} placeholder="Paste the full connection string from Channels > Web app" />
-                </ConfigField>
+              <div><Title2 as="h2">Select the agent</Title2><Text className={styles.muted}>Published custom agents are discovered from this Code App&rsquo;s environment. Microsoft system agents are hidden.</Text></div>
+              {agentsLoading ? <Spinner label="Discovering compatible Copilot Studio agents" /> : agents.length === 0 ? (
+                <MessageBar intent="warning"><MessageBarBody><MessageBarTitle>No compatible published agents found</MessageBarTitle>Publish a custom Standard or GitHub Copilot harness agent in this environment, then reload this page.</MessageBarBody></MessageBar>
               ) : (
-                <ConfigField label="Agent schema name" hint="Copy the schema name from the agent details. The app constructs the agentic runtime URL." required>
-                  <Input value={agentSchemaName} onChange={(_, data) => { setAgentSchemaName(data.value); setAgent(undefined); setAgentLink(''); }} placeholder="contoso_AgentName" />
+                <ConfigField label="Published Copilot Studio agent" required>
+                  <Dropdown
+                    placeholder="Choose an agent"
+                    value={agent?.displayName ?? ''}
+                    selectedOptions={agent ? [agent.id] : []}
+                    onOptionSelect={(_, data) => {
+                      setAgent(agents.find((item) => item.id === data.optionValue));
+                      setLocalError(undefined);
+                    }}
+                  >
+                    {agents.map((item) => (
+                      <Option key={item.id} value={item.id} text={`${item.displayName} — ${item.harness === 'githubCopilot' ? 'GitHub Copilot harness' : 'Standard harness'}`}>
+                        {item.displayName} — {item.harness === 'githubCopilot' ? 'GitHub Copilot harness' : 'Standard harness'}
+                      </Option>
+                    ))}
+                  </Dropdown>
                 </ConfigField>
               )}
-              <ConfigField field="environmentId" label="Environment ID" hint="Copy this GUID from the Power Platform admin center or Copilot Studio metadata." required>
-                <Input value={agentEnvironmentId} onChange={(_, data) => { setAgentEnvironmentId(data.value); setAgent(undefined); }} placeholder="00000000-0000-0000-0000-000000000000" />
+              <ConfigField label="Current environment">
+                <Input readOnly value={runtimeEnvironment?.environmentId ?? ''} />
               </ConfigField>
-              <Button appearance="primary" icon={<BotRegular />} onClick={resolveAgent} disabled={busy}>Resolve agent</Button>
-              {agent && <MessageBar intent="success"><MessageBarBody><MessageBarTitle>{agent.displayName}</MessageBarTitle>{agent.schemaName} · published · environment {agent.environmentId}</MessageBarBody></MessageBar>}
+              {agent && <MessageBar intent="success"><MessageBarBody><MessageBarTitle>{agent.displayName}</MessageBarTitle>{agent.schemaName} · {agent.harness === 'githubCopilot' ? 'GitHub Copilot harness' : 'Standard harness'} · published</MessageBarBody></MessageBar>}
             </div>
           )}
 
@@ -449,12 +432,20 @@ export function SidecarWizard({
               <div className={styles.fields}>
                 <ConfigField field="name" label="Configuration name" required><Input value={name} onChange={(_, data) => setName(data.value)} /></ConfigField>
                 <ConfigField field="paneTitle" label="Pane title" required><Input value={paneTitle} onChange={(_, data) => setPaneTitle(data.value)} /></ConfigField>
-                <ConfigField field="tenantId" label="Tenant ID" required><Input value={tenantId} onChange={(_, data) => setTenantId(data.value)} /></ConfigField>
-                <ConfigField field="publicClientApplicationId" label="Public-client Application ID" required><Input value={clientId} onChange={(_, data) => setClientId(data.value)} placeholder="Create a separate Entra registration" /></ConfigField>
+                <ConfigField label="Current tenant"><Input readOnly value={runtimeEnvironment?.tenantId ?? ''} /></ConfigField>
+                <ConfigField field="publicClientApplicationId" label="Public-client Application ID" required>
+                  <div className={styles.stack}>
+                    <Input value={clientId} onChange={(_, data) => setClientId(data.value)} placeholder="Paste the Application (client) ID" />
+                    <Link href="https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade/~/allApps" target="_blank" rel="noreferrer">Open App registrations in Microsoft Entra</Link>
+                  </div>
+                </ConfigField>
                 <ConfigField field="paneWidth" label="Pane width"><SpinButton min={320} max={600} value={paneWidth} onChange={(_, data) => setPaneWidth(data.value ?? 420)} /></ConfigField>
                 <ConfigField field="bindingSolutionUniqueName" label="Target Binding solution" required><Input value={solutionName} onChange={(_, data) => setSolutionName(data.value.replace(/[^A-Za-z0-9_]/g, ''))} /></ConfigField>
                 <ConfigField className={styles.full} label="Redirect URI" hint="Use the redirect URI you registered in your Entra SPA app registration.">
-                  <Text className={styles.muted}>Register the redirect URI you recorded in your setup worksheet on the Entra SPA app registration &mdash; this environment&rsquo;s organization URL followed by <code>/WebResources/maftagsc_/copilot/authRedirect.html</code>. It must match exactly. The sidecar resolves it automatically at runtime from the current environment, so it is not stored here.</Text>
+                  <div className={styles.stack}>
+                    <Input readOnly value={redirectUri} />
+                    <Text className={styles.muted}>Register this exact URI on the Entra SPA app registration. The sidecar derives it from the current environment and does not store it.</Text>
+                  </div>
                 </ConfigField>
               </div>
               <MessageBar intent="warning"><MessageBarBody><MessageBarTitle>Administrator action required</MessageBarTitle>Add the delegated Power Platform API permission, grant tenant admin consent, and leave Certificates & secrets empty.</MessageBarBody></MessageBar>

@@ -1,5 +1,7 @@
 import {
   mockAdminAccess,
+  mockAgents,
+  mockRuntimeEnvironment,
   mockSidecarConfigurations,
   mockTable,
   mockTargetApps,
@@ -36,6 +38,9 @@ export function createMockSidecarAdministrationProvider(): SidecarAdministration
     async getAccessContext() {
       return clone(mockAdminAccess);
     },
+    async getRuntimeEnvironmentContext() {
+      return clone(mockRuntimeEnvironment);
+    },
     async listConfigurations() {
       return clone(configurations);
     },
@@ -47,6 +52,9 @@ export function createMockSidecarAdministrationProvider(): SidecarAdministration
     },
     async discoverTargetApps() {
       return clone(targetApps);
+    },
+    async discoverAgents() {
+      return clone(mockAgents);
     },
     async resolveManualTargetApp(appId) {
       if (!isGuid(appId)) throw new Error('Enter a valid Model-driven App ID.');

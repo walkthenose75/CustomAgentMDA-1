@@ -279,7 +279,7 @@
       </div>
       <div class="callout info">
         <div class="t">The order matters</div>
-        Do the Azure registration and Copilot Studio agent <b>first</b> &mdash; you need four values from them (client ID, tenant ID, environment ID, agent schema name) to finish the wizard. Then <b>import the solution</b> (which brings the app with it), <b>map the connection(s)</b>, and run the wizard.
+        Do the Azure registration and Copilot Studio agent <b>first</b>. The only identifier you paste into the wizard is the app registration's client ID. The running Code App supplies the tenant and environment IDs, then discovers compatible published agents and their harnesses automatically.
       </div>
       <div class="callout ok">
         <div class="t">No developer tooling required to deploy</div>
@@ -289,10 +289,7 @@
       <table class="tbl">
         <tr><th>Value</th><th>Where it comes from</th><th>Secret?</th></tr>
         <tr><td>Application (client) ID</td><td>Entra app registration (Phase 1)</td><td>No</td></tr>
-        <tr><td>Directory (tenant) ID</td><td>Entra app registration (Phase 1)</td><td>No</td></tr>
-        <tr><td>Environment ID</td><td>Copilot Studio agent metadata (Phase 2)</td><td>No</td></tr>
-        <tr><td>Agent schema name</td><td>Copilot Studio agent metadata (Phase 2)</td><td>No</td></tr>
-        <tr><td>Agents SDK connection string</td><td>Copilot Studio channel (Standard harness only)</td><td>No</td></tr>
+        <tr><td>Target environment (org) URL</td><td>Power Platform Admin Center; used to register the SPA redirect URI</td><td>No</td></tr>
       </table>
       <div class="callout ok"><div class="t">No secrets, ever</div>The browser client uses delegated authentication with PKCE. <b>Never</b> create a client secret or certificate for this registration.</div>
     </section>
@@ -329,35 +326,15 @@
             <div class="hint">From Power Platform Admin Center &rsaquo; your environment.</div>
           </div>
           <div>
-            <label>Directory (tenant) ID</label>
-            <div class="finput"><input id="w-tenant" data-key="tenant" placeholder="00000000-0000-0000-0000-000000000000" /><button type="button" class="fcopy" data-copy="tenant">Copy</button></div>
-            <div class="hint">Entra &rsaquo; app registration Overview (Phase 1).</div>
-          </div>
-          <div>
             <label>Application (client) ID</label>
             <div class="finput"><input id="w-client" data-key="client" placeholder="00000000-0000-0000-0000-000000000000" /><button type="button" class="fcopy" data-copy="client">Copy</button></div>
             <div class="hint">Entra &rsaquo; app registration Overview (Phase 1).</div>
-          </div>
-          <div>
-            <label>Environment ID</label>
-            <div class="finput"><input id="w-env" data-key="env" placeholder="00000000-0000-0000-0000-000000000000" /><button type="button" class="fcopy" data-copy="env">Copy</button></div>
-            <div class="hint">Copilot Studio agent metadata (Phase 2).</div>
-          </div>
-          <div>
-            <label>Agent schema name</label>
-            <div class="finput"><input id="w-agent" data-key="agent" placeholder="cr123_myAgent" /><button type="button" class="fcopy" data-copy="agent">Copy</button></div>
-            <div class="hint">Copilot Studio agent metadata (Phase 2).</div>
           </div>
           <div>
             <label>Publisher prefix</label>
             <div class="finput"><input id="w-prefix" data-key="prefix" value="maftagsc" /><button type="button" class="fcopy" data-copy="prefix">Copy</button></div>
             <div class="hint">The Core solution ships with <code class="inline">maftagsc</code>. Leave as-is unless you re-published.</div>
           </div>
-        </div>
-        <div style="margin-top:12px">
-          <label>Agents SDK connection string</label>
-          <div class="finput"><input id="w-connstr" data-key="connstr" placeholder="https://…/copilotstudio/…/bots/&lt;schema&gt;/conversations?api-version=…" /><button type="button" class="fcopy" data-copy="connstr">Copy</button></div>
-          <div class="hint">Standard harness only: Copilot Studio &rsaquo; your agent &rsaquo; <b>Channels &rsaquo; Web app / Microsoft 365 Agents SDK</b>. GitHub Copilot harness agents need only the Environment ID and schema name.</div>
         </div>
         <div class="callout info" style="margin-bottom:0">
           <div class="t">Computed SPA redirect URI</div>
@@ -446,10 +423,10 @@
     <!-- COPILOT STUDIO -->
     <section id="copilot">
       <h3><span class="badge">2</span> Copilot Studio agent</h3>
-      <p class="sub">Prepare a published agent. Standard harness agents require an Agents SDK connection string; GitHub Copilot harness agents require only the environment ID and schema name.</p>
+      <p class="sub">Prepare a published custom agent in the same environment as the Code App. The administration app discovers compatible agents and detects their harness automatically.</p>
       <div class="callout warn">
-        <div class="t">Version note — GA as of 10 July 2026</div>
-        These steps target the <b>generally available</b> Copilot Studio experience as of <b>10 Jul 2026</b>. Microsoft updates this product frequently; if a menu label or channel name differs, look for the equivalent under the agent's <b>Settings</b> and <b>Channels</b> areas.
+        <div class="t">Version note — GitHub Copilot harness GA as of 3 August 2026</div>
+        These steps target the <b>generally available</b> Copilot Studio experience as of <b>3 Aug 2026</b>. Microsoft updates this product frequently; if a menu label differs, look for the equivalent under the agent's <b>Settings</b> area.
       </div>
 
       <ol class="steps">
@@ -463,26 +440,8 @@
             <figcaption><b>Figure 2.1</b> — Agent authentication set to Microsoft (Entra ID).</figcaption>
           </figure>
         </li>
-        <li><b>Read the metadata.</b> Open <b>Settings &rsaquo; Advanced &rsaquo; Metadata</b> and copy the <b>Environment ID</b> and <b>Schema name</b> into the <a href="#prereq">worksheet</a>.
-          <figure class="shot">
-            <div class="shot-frame"><div class="chrome"><i></i><i></i><i></i><span class="u">Settings &rsaquo; Advanced &rsaquo; Metadata</span></div>
-              <img src="img/07-cps-metadata.png" alt="CPS metadata" onerror="this.closest('.shot-frame').classList.add('missing')">
-              <div class="shot-placeholder"><span class="camera">📷</span><b>Environment ID &amp; Schema name</b><div class="file">Save as <code>img/07-cps-metadata.png</code></div></div>
-            </div>
-            <figcaption><b>Figure 2.2</b> — The agent's Environment ID and Schema name.</figcaption>
-          </figure>
-        </li>
         <li><b>Publish the agent.</b> Select <b>Publish</b> (top-right). The sidecar only binds to a <b>published</b> agent.</li>
-        <li><b>Standard harness only — get the Agents SDK connection string.</b> Open <b>Channels</b> and select the <b>Web app</b> / <b>Microsoft 365 Agents SDK</b> channel. Copy the <b>connection string</b> (a URL). GitHub Copilot harness agents skip this step because the administration app constructs their agentic runtime URL.
-          <div class="callout info"><div class="t">What a valid connection string looks like</div>It must be an <b>https</b> URL, contain a <code class="inline">/bots/&lt;schema&gt;/</code> segment (or <code class="inline">?agentName=&lt;schema&gt;</code>), and end in <code class="inline">/conversations</code>. Copy the <b>Agents SDK connection string</b>, <b>not</b> the public iframe embed code.</div>
-          <figure class="shot">
-            <div class="shot-frame"><div class="chrome"><i></i><i></i><i></i><span class="u">Channels &rsaquo; Web app / Agents SDK</span></div>
-              <img src="img/08-cps-connection-string.png" alt="CPS connection string" onerror="this.closest('.shot-frame').classList.add('missing')">
-              <div class="shot-placeholder"><span class="camera">📷</span><b>Channels &rsaquo; Web app — Microsoft 365 Agents SDK connection string</b><div class="file">Save as <code>img/08-cps-connection-string.png</code></div></div>
-            </div>
-            <figcaption><b>Figure 2.3</b> — The Agents SDK connection string in the Web app channel.</figcaption>
-          </figure>
-        </li>
+        <li><b>Keep the agent in the target environment.</b> The wizard intentionally lists only compatible published custom agents in the environment where the Code App is running. Microsoft-managed system agents are hidden.</li>
         <li><b>Share the agent.</b> From the agent overview, share chat access with the intended users (or an Entra security group). Grounding (e.g. SharePoint knowledge) stays scoped to each signed-in user.</li>
       </ol>
     </section>
@@ -592,20 +551,18 @@ pac code push -s AgentSidecarCore</code></pre></div>
       </figure>
 
       <h4>Step 3 — Agent</h4>
-      <p>Connect the published Copilot Studio agent from Phase 2:</p>
+      <p>Select the published Copilot Studio agent from Phase 2:</p>
       <ul>
-        <li>Choose <b>Standard harness</b> or <b>GitHub Copilot harness</b>.</li>
-        <li>For Standard harness, paste the full <b>Agents SDK connection string</b> from Copilot Studio &rsaquo; Channels.</li>
-        <li>For GitHub Copilot harness, enter the agent <b>schema name</b>; the app constructs the agentic runtime URL.</li>
-        <li>Enter the <b>Environment ID</b>: <code class="inline val" data-bind="env">…</code></li>
-        <li>Select <b>Resolve</b>. The agent's display name appears when resolution succeeds (it must be active and published).</li>
+        <li>Choose a compatible <b>published custom agent</b> from the list.</li>
+        <li>The app reads the current environment ID from Power Apps context.</li>
+        <li>The app reads the schema name and harness metadata from Dataverse, then constructs the correct Standard or GitHub Copilot runtime URL.</li>
       </ul>
       <figure class="shot">
         <div class="shot-frame"><div class="chrome"><i></i><i></i><i></i><span class="u">Wizard — Step 3 · Agent</span></div>
           <img src="img/14-wizard-agent.png" alt="Wizard agent" onerror="this.closest('.shot-frame').classList.add('missing')">
-          <div class="shot-placeholder"><span class="camera">📷</span><b>Step 3 — Harness + agent details + Resolve</b><div class="file">Save as <code>img/14-wizard-agent.png</code></div></div>
+          <div class="shot-placeholder"><span class="camera">📷</span><b>Step 3 — Published agent picker with harness labels</b><div class="file">Save as <code>img/14-wizard-agent.png</code></div></div>
         </div>
-        <figcaption><b>Figure 5.3</b> — Resolving the existing Copilot Studio agent (read-only lookup).</figcaption>
+        <figcaption><b>Figure 5.3</b> — Selecting a compatible agent discovered from the current environment.</figcaption>
       </figure>
 
       <h4>Step 4 — Identity &amp; pane</h4>
@@ -614,8 +571,8 @@ pac code push -s AgentSidecarCore</code></pre></div>
         <tr><th>Field</th><th>Value</th></tr>
         <tr><td>Configuration name</td><td>e.g. <code class="inline">Sales Assistant</code> (defaults from the app name)</td></tr>
         <tr><td>Pane title</td><td>Shown at the top of the side pane</td></tr>
-        <tr><td>Tenant ID</td><td><code class="inline val" data-bind="tenant">…</code></td></tr>
-        <tr><td>Public Client Application ID</td><td><code class="inline val" data-bind="client">…</code> (from Phase 1)</td></tr>
+        <tr><td>Tenant ID</td><td>Detected automatically from the signed-in Power Apps context (read-only)</td></tr>
+        <tr><td>Public Client Application ID</td><td><code class="inline val" data-bind="client">…</code> (the only identifier you paste; the wizard links to Entra App registrations)</td></tr>
         <tr><td>Pane width</td><td>e.g. <code class="inline">420</code></td></tr>
         <tr><td>Target Binding solution</td><td>Auto-suggested, e.g. <code class="inline">&lt;App&gt;SidecarBinding</code></td></tr>
         <tr><td>Redirect URI (read-only)</td><td><code class="inline val" data-bind="redirect">…</code> — must match the one registered in Azure</td></tr>
@@ -624,7 +581,7 @@ pac code push -s AgentSidecarCore</code></pre></div>
       <figure class="shot">
         <div class="shot-frame"><div class="chrome"><i></i><i></i><i></i><span class="u">Wizard — Step 4 · Identity</span></div>
           <img src="img/15-wizard-identity.png" alt="Wizard identity" onerror="this.closest('.shot-frame').classList.add('missing')">
-          <div class="shot-placeholder"><span class="camera">📷</span><b>Step 4 — Identity &amp; pane (tenant, client ID, redirect URI)</b><div class="file">Save as <code>img/15-wizard-identity.png</code></div></div>
+          <div class="shot-placeholder"><span class="camera">📷</span><b>Step 4 — Identity &amp; pane (detected tenant, client ID, redirect URI)</b><div class="file">Save as <code>img/15-wizard-identity.png</code></div></div>
         </div>
         <figcaption><b>Figure 5.4</b> — Delegated identity and pane settings. Selecting Continue previews the impact (read-only).</figcaption>
       </figure>
@@ -666,7 +623,7 @@ pac code push -s AgentSidecarCore</code></pre></div>
       <table class="tbl">
         <tr><th>Symptom</th><th>Cause &amp; fix</th></tr>
         <tr><td>Sign-in fails with a <b>redirect URI mismatch</b></td><td>The Azure SPA redirect URI doesn't exactly match the wizard's. Re-copy the computed URI (<code class="inline" data-bind="redirect">…</code>) into Entra &rsaquo; Authentication.</td></tr>
-        <tr><td>Agent won't resolve in Step 3</td><td>The agent must be <b>published</b>, <b>active</b>, and <b>Authenticate with Microsoft</b>. For Standard harness, use the full https connection string ending in <code class="inline">/conversations</code>. For GitHub Copilot harness, verify the Environment ID and schema name. Confirm the Environment ID matches the app's environment.</td></tr>
+        <tr><td>Agent doesn't appear in Step 3</td><td>The agent must be a <b>published custom agent</b> in the same environment as the Code App and use a compatible Standard or GitHub Copilot harness. Publish or republish it, then reload the administration app.</td></tr>
         <tr><td>"Consent required" / token errors</td><td>Admin consent for <code class="inline">CopilotStudio.Copilots.Invoke</code> was not granted. Re-grant in Entra &rsaquo; API permissions.</td></tr>
         <tr><td>Pane loads but no answer / 401 from agent</td><td>Token-broker plugin secure configuration not set for this environment, or the user lacks chat access to the agent. Set the secure config and share the agent.</td></tr>
         <tr><td>App shows no eligible apps/tables</td><td>Confirm the <b>AgentSidecarCore</b> solution imported successfully (it contains the app + tables) and that the app's <b>connection reference(s)</b> are mapped. The app reads live Dataverse metadata as the signed-in user, who needs System Administrator/Customizer rights.</td></tr>
@@ -729,7 +686,7 @@ pac code push -s AgentSidecarCore</code></pre></div>
   });
 
   // ---- Values worksheet binding ----
-  const KEYS = ["org", "tenant", "client", "env", "agent", "prefix", "connstr"];
+  const KEYS = ["org", "client", "prefix"];
   const store = JSON.parse(localStorage.getItem("cp-ws") || "{}");
   function computeRedirect() {
     const org = (store.org || "").trim().replace(/\/+$/, "");

@@ -1,6 +1,7 @@
 export type SidecarLifecycleState = 'draft' | 'deployed' | 'disabled' | 'drift';
 export type SidecarHealthState = 'healthy' | 'warning' | 'critical' | 'notValidated';
 export type SidecarSurface = 'forms' | 'lists';
+export type CopilotStudioHarness = 'standard' | 'githubCopilot';
 
 export interface TargetForm {
   formId: string;
@@ -70,6 +71,18 @@ export interface AgentResolution {
   schemaName: string;
   environmentId: string;
   published: boolean;
+}
+
+export interface DiscoveredAgent extends AgentResolution {
+  id: string;
+  harness: CopilotStudioHarness;
+  connectionString: string;
+}
+
+export interface RuntimeEnvironmentContext {
+  environmentId: string;
+  tenantId: string;
+  dataverseOrgUrl: string;
 }
 
 export interface AdminAccessContext {

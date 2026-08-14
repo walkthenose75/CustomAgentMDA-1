@@ -13,8 +13,8 @@ import { Maftagsc_sidecarconfigurationsmaftagsc_healthstate as HealthOptions, Ma
 import { Maftagsc_targetbindingsmaftagsc_validationstate as ValidationOptions, type Maftagsc_targetbindings } from '@/generated/models/Maftagsc_targetbindingsModel';
 import type { SidecarAdministrationProvider } from '@/services/sidecar-admin-contracts';
 import { addSolutionComponent, assertSidecarActionsAvailable, publishTables } from '@/services/dataverse-custom-api';
-import type { SidecarConfiguration, SidecarDraft, SidecarHealthCheck, SidecarHealthState, SidecarLifecycleState, SidecarProgressCallback, TargetModelDrivenApp, TargetTable } from '@/types/sidecar-admin-models';
-import { parseCopilotStudioConnectionString } from '@/utils/agent-link';
+import type { DiscoveredAgent, SidecarConfiguration, SidecarDraft, SidecarHealthCheck, SidecarHealthState, SidecarLifecycleState, SidecarProgressCallback, TargetModelDrivenApp, TargetTable } from '@/types/sidecar-admin-models';
+import { buildCopilotStudioConnectionString, classifyCopilotStudioHarness, isMicrosoftSystemAgent, parseCopilotStudioConnectionString } from '@/utils/agent-link';
 import { discoverAppForms, type DiscoveredForm } from '@/services/model-driven-app-discovery';
 import { isInformationFormName } from '@/lib/target-forms';
 
@@ -178,6 +178,11 @@ function map(record: Maftagsc_sidecarconfigurations, bindings: Maftagsc_targetbi
 export function createRealSidecarAdministrationProvider(): SidecarAdministrationProvider {
   const appForms = new Map<string, Map<string, Form[]>>();
   const appTableDisplayNames = new Map<string, Map<string, string>>();
+  let contextPromise: ReturnType<typeof getContext> | undefined;
+  const runtimeContext = () => {
+    contextPromise ??= getContext();
+    return contextPromise;
+  };
   async function bindingsFor(id?: string): Promise<Maftagsc_targetbindings[]> {
     return data(await Bindings.getAll({ filter: id ? `_maftagsc_sidecarconfiguration_value eq ${guid(id, 'Configuration ID')}` : undefined, top: 5000 }), 'List target bindings');
   }
@@ -297,13 +302,23 @@ export function createRealSidecarAdministrationProvider(): SidecarAdministration
 
   return {
     async getAccessContext() {
-      const context = await getContext();
+      const context = await runtimeContext();
       const users = data(await SystemusersService.getAll({ select: ['systemuserid', 'fullname'], filter: `azureactivedirectoryobjectid eq ${guid(context.user.objectId, 'Current user object ID')}`, top: 1 }), 'Resolve user');
       if (!users[0]) return { displayName: context.user.fullName ?? context.user.userPrincipalName ?? 'Current user', isSystemAdministrator: false };
       const roles = data(await RolesService.getAll({ select: ['roleid'], filter: `_roletemplateid_value eq ${ADMIN_ROLE_TEMPLATE}`, top: 50 }), 'Resolve administrator roles');
       const roleIds = new Set(roles.map((item) => item.roleid.toLowerCase()));
       const assignments = data(await SystemuserrolescollectionService.getAll({ select: ['roleid', 'systemuserid'], filter: `systemuserid eq ${guid(users[0].systemuserid, 'System user ID')}`, top: 500 }), 'Read role assignments');
       return { displayName: context.user.fullName || users[0].fullname || context.user.userPrincipalName || 'Current user', isSystemAdministrator: assignments.some((item) => roleIds.has(item.roleid.toLowerCase())) };
+    },
+    async getRuntimeEnvironmentContext() {
+      const context = await runtimeContext();
+      const dataverseOrgUrl = context.app.dataverseOrgUrl?.replace(/\/$/, '');
+      if (!dataverseOrgUrl) throw new Error('The current Dataverse organization URL is unavailable.');
+      return {
+        environmentId: guid(context.app.environmentId, 'Current environment ID'),
+        tenantId: guid(context.user.tenantId, 'Current tenant ID'),
+        dataverseOrgUrl,
+      };
     },
     async listConfigurations() {
       const [records, bindings] = await Promise.all([Configurations.getAll({ orderBy: ['modifiedon desc'], top: 5000 }), bindingsFor()]);
@@ -314,9 +329,32 @@ export function createRealSidecarAdministrationProvider(): SidecarAdministration
       const apps = data(await AppmodulesService.getAll({ select: ['appmoduleid'], filter: 'statecode eq 0 and componentstate eq 0', orderBy: ['name asc'], top: 500 }), 'Discover apps');
       return Promise.all(apps.map((app) => targetApp(app.appmoduleid)));
     },
+    async discoverAgents() {
+      const context = await runtimeContext();
+      const environmentId = guid(context.app.environmentId, 'Current environment ID');
+      const agents = data(await BotsService.getAll({
+        select: ['botid', 'name', 'schemaname', 'configuration', 'publishedon'],
+        filter: 'statecode eq 0 and componentstate eq 0 and publishedon ne null',
+        orderBy: ['name asc'],
+        top: 500,
+      }), 'Discover Copilot Studio agents');
+      return agents.flatMap((record): DiscoveredAgent[] => {
+        const harness = classifyCopilotStudioHarness(record.configuration);
+        if (!harness || isMicrosoftSystemAgent(record.schemaname, record.name)) return [];
+        return [{
+          id: record.botid,
+          displayName: record.name || record.schemaname,
+          schemaName: record.schemaname,
+          environmentId,
+          published: true,
+          harness,
+          connectionString: buildCopilotStudioConnectionString(environmentId, record.schemaname, harness),
+        }];
+      });
+    },
     resolveManualTargetApp: (appId) => targetApp(guid(appId, 'Model-driven App ID')),
     async resolveAgentLink(connectionString, environmentId) {
-      const parsed = parseCopilotStudioConnectionString(connectionString, environmentId); const context = await getContext();
+      const parsed = parseCopilotStudioConnectionString(connectionString, environmentId); const context = await runtimeContext();
       if (context.app.environmentId.toLowerCase() !== parsed.environmentId.toLowerCase()) throw new Error('The Copilot Studio agent must belong to the Code App environment.');
       const agents = data(await BotsService.getAll({ select: ['name', 'schemaname', 'publishedon'], filter: `schemaname eq '${odataString(parsed.schemaName)}' and statecode eq 0`, top: 1 }), 'Resolve agent');
       if (!agents[0]) throw new Error(`No active Copilot Studio agent named ${parsed.schemaName} was found.`);
