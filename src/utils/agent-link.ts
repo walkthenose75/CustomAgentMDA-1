@@ -3,6 +3,7 @@ import type { AgentResolution } from '@/types/sidecar-admin-models';
 const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const schemaPattern = /^[A-Za-z][A-Za-z0-9_]{2,199}$/;
 const githubCopilotHarnessPath = ['copilotstudio', 'agenticruntime', '3p', 'dataverse-backed', 'authenticated', 'bots'];
+const standardHarnessPath = ['copilotstudio', 'dataverse-backed', 'authenticated', 'bots'];
 
 export type CopilotStudioHarness = 'standard' | 'githubCopilot';
 
@@ -13,9 +14,8 @@ interface BotConfiguration {
   };
 }
 
-function valueAfterSegment(segments: string[], segment: string): string | undefined {
-  const index = segments.findIndex((item) => item.toLowerCase() === segment.toLowerCase());
-  return index >= 0 ? segments[index + 1] : undefined;
+function matchesPathPrefix(segments: string[], expected: string[]): boolean {
+  return expected.every((segment, index) => segments[index]?.toLowerCase() === segment);
 }
 
 export function parseCopilotStudioConnectionString(connectionString: string, environmentId: string): AgentResolution {
@@ -35,30 +35,35 @@ export function parseCopilotStudioConnectionString(connectionString: string, env
     throw new Error('The Agents SDK connection string must use HTTPS.');
   }
 
-  const segments = url.pathname.split('/').filter(Boolean);
   const normalizedEnvironmentId = environmentId.trim();
-  const schemaName =
-    url.searchParams.get('agentName') ??
-    url.searchParams.get('agentname') ??
-    valueAfterSegment(segments, 'bots');
-
   if (!guidPattern.test(normalizedEnvironmentId)) {
     throw new Error('Enter a valid Power Platform Environment ID.');
   }
+
+  const expectedHost = getPowerPlatformEnvironmentApiHost(normalizedEnvironmentId);
+  if (url.hostname.toLowerCase() !== expectedHost || url.port) {
+    throw new Error('The Agents SDK connection string host does not match the supplied Environment ID.');
+  }
+
+  const segments = url.pathname.split('/').filter(Boolean);
   const normalizedSegments = segments.map((segment) => segment.toLowerCase());
-  const isStandardHarness = normalizedSegments.includes('conversations');
+  const isStandardHarness =
+    normalizedSegments.length === standardHarnessPath.length + 2 &&
+    matchesPathPrefix(normalizedSegments, standardHarnessPath) &&
+    normalizedSegments[normalizedSegments.length - 1] === 'conversations';
+  const hasGitHubCopilotConversationsPath =
+    normalizedSegments.length === githubCopilotHarnessPath.length + 2 &&
+    normalizedSegments[normalizedSegments.length - 1] === 'conversations';
   const isGitHubCopilotHarness =
-    normalizedSegments.length === githubCopilotHarnessPath.length + 1 &&
-    githubCopilotHarnessPath.every((segment, index) => normalizedSegments[index] === segment) &&
+    (normalizedSegments.length === githubCopilotHarnessPath.length + 1 || hasGitHubCopilotConversationsPath) &&
+    matchesPathPrefix(normalizedSegments, githubCopilotHarnessPath) &&
     url.searchParams.get('api-version') === '1';
   if (!isStandardHarness && !isGitHubCopilotHarness) {
-    throw new Error('Use a Standard harness Agents SDK URL ending in /conversations or a GitHub Copilot harness agentic runtime URL.');
+    throw new Error('Use a supported Standard harness /copilotstudio/dataverse-backed/.../bots/{schema}/conversations URL or GitHub Copilot harness /copilotstudio/agenticruntime/3p/.../bots/{schema} URL.');
   }
+  const schemaName = segments[isStandardHarness ? standardHarnessPath.length : githubCopilotHarnessPath.length];
   if (!schemaName || !schemaPattern.test(schemaName)) {
     throw new Error('The Agents SDK connection string does not contain a valid /bots/{agentName}/ segment.');
-  }
-  if (isGitHubCopilotHarness && url.hostname.toLowerCase() !== getPowerPlatformEnvironmentApiHost(normalizedEnvironmentId)) {
-    throw new Error('The GitHub Copilot harness URL does not match the supplied Environment ID.');
   }
 
   const displayName = schemaName

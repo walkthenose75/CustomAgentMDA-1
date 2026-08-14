@@ -5,7 +5,6 @@ import {
     type AuthenticationResult
 } from "@azure/msal-browser";
 import {
-    ConnectionSettings,
     CopilotStudioClient,
     CopilotStudioWebChat,
     type CopilotStudioWebChatConnection
@@ -22,6 +21,7 @@ import {
     normalizeUserRoles,
     serializeUserRoles
 } from "./sidecarUserRoles";
+import { createSidecarConnectionSettings } from "./sidecarConnectionSettings";
 
 const ORIGINAL_TEXT_KEY = "hrSidecarOriginalText";
 const AUTH_REQUEST_KEY = "maftagsc.sidecar.authRequest";
@@ -630,10 +630,7 @@ function renderConversation(
         throw new Error("The chat client couldn't be loaded.");
     }
 
-    const settings = new ConnectionSettings({
-        environmentId: configuration.environmentId,
-        schemaName: configuration.agentSchemaName
-    });
+    const settings = createSidecarConnectionSettings(configuration);
     const client = new CopilotStudioClient(settings, token);
     const connection = CopilotStudioWebChat.createConnection(client, {
         showTyping: true

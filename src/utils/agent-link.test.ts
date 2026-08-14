@@ -9,7 +9,8 @@ import {
 } from '@/utils/agent-link';
 
 const environmentId = 'f9b87f8b-0abf-e629-affb-b13195d1ed14';
-const connectionString = 'https://1234567890.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/contoso_FieldGuide/conversations?api-version=2022-03-01-preview';
+const connectionString = 'https://f9b87f8b0abfe629affbb13195d1ed.14.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/contoso_FieldGuide/conversations?api-version=2022-03-01-preview';
+const ghcpConnectionString = 'https://f9b87f8b0abfe629affbb13195d1ed.14.environment.api.powerplatform.com/copilotstudio/agenticruntime/3p/dataverse-backed/authenticated/bots/contoso_FieldGuide?api-version=1';
 
 describe('parseCopilotStudioConnectionString', () => {
   it('resolves the agent schema from an Agents SDK connection string and uses the supplied environment ID', () => {
@@ -30,7 +31,10 @@ describe('parseCopilotStudioConnectionString', () => {
   });
 
   it('rejects a public web chat URL without the conversations endpoint', () => {
-    expect(() => parseCopilotStudioConnectionString('https://copilotstudio.microsoft.com/bots/contoso_FieldGuide/webchat', environmentId)).toThrow('ending in /conversations');
+    expect(() => parseCopilotStudioConnectionString(
+      connectionString.replace('/copilotstudio/dataverse-backed/authenticated/bots/contoso_FieldGuide/conversations', '/bots/contoso_FieldGuide/webchat'),
+      environmentId,
+    )).toThrow('supported Standard harness');
   });
 
   it('rejects public iframe embed HTML with actionable guidance', () => {
@@ -38,8 +42,7 @@ describe('parseCopilotStudioConnectionString', () => {
   });
 
   it('resolves a GitHub Copilot harness agentic runtime URL', () => {
-    const url = buildGitHubCopilotHarnessConnectionString(environmentId, 'contoso_FieldGuide');
-    expect(parseCopilotStudioConnectionString(url, environmentId)).toEqual({
+    expect(parseCopilotStudioConnectionString(ghcpConnectionString, environmentId)).toEqual({
       displayName: 'Field Guide',
       schemaName: 'contoso_FieldGuide',
       environmentId,
@@ -47,9 +50,33 @@ describe('parseCopilotStudioConnectionString', () => {
     });
   });
 
+  it('accepts a GitHub Copilot harness URL that already contains /conversations', () => {
+    expect(parseCopilotStudioConnectionString(
+      ghcpConnectionString.replace('?api-version=1', '/conversations?api-version=1'),
+      environmentId,
+    )).toMatchObject({ schemaName: 'contoso_FieldGuide', environmentId });
+  });
+
   it('rejects a GitHub Copilot harness URL for a different environment', () => {
-    const url = buildGitHubCopilotHarnessConnectionString(environmentId, 'contoso_FieldGuide');
-    expect(() => parseCopilotStudioConnectionString(url, '7d8dcd87-2e21-e805-b9be-678794ecc80b')).toThrow('does not match');
+    expect(() => parseCopilotStudioConnectionString(
+      ghcpConnectionString,
+      '7d8dcd87-2e21-e805-b9be-678794ecc80b',
+    )).toThrow('host does not match');
+  });
+
+  it('rejects invalid hosts, paths, and schema names', () => {
+    expect(() => parseCopilotStudioConnectionString(
+      ghcpConnectionString.replace('environment.api.powerplatform.com', 'example.com'),
+      environmentId,
+    )).toThrow('host does not match');
+    expect(() => parseCopilotStudioConnectionString(
+      ghcpConnectionString.replace('/agenticruntime/3p/', '/agenticruntime/unsupported/'),
+      environmentId,
+    )).toThrow('supported Standard harness');
+    expect(() => parseCopilotStudioConnectionString(
+      ghcpConnectionString.replace('contoso_FieldGuide', 'invalid-schema'),
+      environmentId,
+    )).toThrow('valid /bots/{agentName}/');
   });
 });
 

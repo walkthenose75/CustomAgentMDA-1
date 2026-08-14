@@ -6,7 +6,12 @@ import {
     SidecarConfigurationError,
     type SidecarConfiguration
 } from "../../model-driven/webresources/maftagsc_/copilot/sidecarConfiguration";
-import { BootstrapSidecarConfigurationRepository } from "../../model-driven/webresources/maftagsc_/copilot/sidecarConfigurationRepository";
+import {
+    BootstrapSidecarConfigurationRepository,
+    DataverseSidecarConfigurationRepository,
+    FallbackSidecarConfigurationRepository
+} from "../../model-driven/webresources/maftagsc_/copilot/sidecarConfigurationRepository";
+import { createSidecarConnectionSettings } from "../../model-driven/webresources/maftagsc_/copilot/sidecarConnectionSettings";
 
 const APP_ID = "62e8fdf6-e77b-f111-ab0e-000d3a34048c";
 const SECOND_APP_ID = "11111111-2222-3333-4444-555555555555";
@@ -26,6 +31,7 @@ function createConfiguration(
         tenantId: "d92190b9-98e7-46da-8b11-580e06c7d15d",
         environmentId: "f9b87f8b-0abf-e629-affb-b13195d1ed14",
         agentSchemaName: "cr0b1_HRMgmtClassic",
+        agentConnectionString: "https://f9b87f8b0abfe629affbb13195d1ed.14.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr0b1_HRMgmtClassic/conversations?api-version=2022-03-01-preview",
         scope: "https://api.powerplatform.com/CopilotStudio.Copilots.Invoke",
         redirectPath: "/WebResources/maftagsc_/copilot/authRedirect.html",
         contextLabel: "HR Management app",
@@ -58,6 +64,55 @@ describe("sidecar configuration resolution", () => {
         await expect(repository.getByAppId(APP_ID)).resolves.toBe(configuration);
     });
 
+    it("maps the saved Agents SDK connection string from Dataverse", async () => {
+        const queries: string[] = [];
+        const repository = new DataverseSidecarConfigurationRepository(() => ({
+            async retrieveMultipleRecords(entityLogicalName, options) {
+                queries.push(options);
+                return entityLogicalName === "maftagsc_sidecarconfiguration"
+                    ? {
+                        entities: [{
+                            maftagsc_sidecarconfigurationid: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                            maftagsc_panetitle: "Insights and actions",
+                            maftagsc_panewidth: 420,
+                            maftagsc_publicclientapplicationid: "9d03cd77-5246-4c9c-8e9d-262bff547a25",
+                            maftagsc_tenantid: "d92190b9-98e7-46da-8b11-580e06c7d15d",
+                            maftagsc_environmentid: "7d8dcd87-2e21-e805-b9be-678794ecc80b",
+                            maftagsc_agentschemaname: "cr88d_insightsandactions_AChDbK",
+                            maftagsc_agentconnectionstring: "https://7d8dcd872e21e805b9be678794ecc8.0b.environment.api.powerplatform.com/copilotstudio/agenticruntime/3p/dataverse-backed/authenticated/bots/cr88d_insightsandactions_AChDbK?api-version=1"
+                        }]
+                    }
+                    : {
+                        entities: [{
+                            maftagsc_tablelogicalname: "account",
+                            maftagsc_tabledisplayname: "Account",
+                            maftagsc_enabled: true
+                        }]
+                    };
+            }
+        }));
+
+        const configuration = await repository.getByAppId(APP_ID);
+
+        expect(queries[0]).toContain("maftagsc_agentconnectionstring");
+        expect(configuration.agentConnectionString).toBe(
+            "https://7d8dcd872e21e805b9be678794ecc8.0b.environment.api.powerplatform.com/copilotstudio/agenticruntime/3p/dataverse-backed/authenticated/bots/cr88d_insightsandactions_AChDbK?api-version=1"
+        );
+    });
+
+    it("uses only the saved URL for SDK direct-connect settings", () => {
+        const directConnectUrl = "https://7d8dcd872e21e805b9be678794ecc8.0b.environment.api.powerplatform.com/copilotstudio/agenticruntime/3p/dataverse-backed/authenticated/bots/cr88d_insightsandactions_AChDbK?api-version=1";
+        const settings = createSidecarConnectionSettings(createConfiguration({
+            environmentId: "7d8dcd87-2e21-e805-b9be-678794ecc80b",
+            agentSchemaName: "cr88d_insightsandactions_AChDbK",
+            agentConnectionString: directConnectUrl
+        }));
+
+        expect(settings.directConnectUrl).toBe(directConnectUrl);
+        expect(settings.environmentId).toBeUndefined();
+        expect(settings.schemaName).toBeUndefined();
+    });
+
     it("keeps independent agents and pane identities for multiple apps", async () => {
         const hrConfiguration = createConfiguration();
         const secondConfiguration = createConfiguration({
@@ -65,6 +120,7 @@ describe("sidecar configuration resolution", () => {
             paneId: "contoso_service_guide",
             paneTitle: "Service Guide",
             agentSchemaName: "contoso_ServiceAgent",
+            agentConnectionString: "https://f9b87f8b0abfe629affbb13195d1ed.14.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/contoso_ServiceAgent/conversations?api-version=2022-03-01-preview",
             entityBindings: {
                 incident: {
                     logicalName: "incident",
@@ -117,6 +173,27 @@ describe("sidecar configuration resolution", () => {
         ], APP_ID)).toThrowError(expect.objectContaining<Partial<SidecarConfigurationError>>({
             errorCode: "sidecar_configuration_invalid"
         }));
+    });
+
+    it("fails closed instead of deriving a legacy endpoint from an invalid saved URL", () => {
+        expect(() => resolveSidecarConfiguration([
+            createConfiguration({ agentConnectionString: "https://example.com/not-an-agent" })
+        ], APP_ID)).toThrowError(expect.objectContaining<Partial<SidecarConfigurationError>>({
+            errorCode: "sidecar_configuration_invalid"
+        }));
+    });
+
+    it("does not replace an invalid configured URL with a bootstrap fallback", async () => {
+        const repository = new FallbackSidecarConfigurationRepository(
+            new BootstrapSidecarConfigurationRepository([
+                createConfiguration({ agentConnectionString: "https://example.com/not-an-agent" })
+            ]),
+            new BootstrapSidecarConfigurationRepository([createConfiguration()])
+        );
+
+        await expect(repository.getByAppId(APP_ID)).rejects.toMatchObject({
+            errorCode: "sidecar_configuration_invalid"
+        });
     });
 
     it("rejects unsafe pane dimensions", () => {
