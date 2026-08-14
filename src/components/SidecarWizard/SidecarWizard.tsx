@@ -9,6 +9,8 @@ import {
   MessageBarBody,
   MessageBarTitle,
   ProgressBar,
+  Radio,
+  RadioGroup,
   SpinButton,
   Spinner,
   Text,
@@ -40,7 +42,7 @@ import type {
   TargetModelDrivenApp,
   TargetTable,
 } from '@/types/sidecar-admin-models';
-import { isGuid } from '@/utils/agent-link';
+import { buildGitHubCopilotHarnessConnectionString, isGuid, type CopilotStudioHarness } from '@/utils/agent-link';
 import { defaultFormId } from '@/lib/target-forms';
 import { DataverseFieldLabel } from '@/components/DataverseFieldLabel';
 import { OperationProgress } from '@/components/OperationProgress/OperationProgress';
@@ -145,7 +147,9 @@ export function SidecarWizard({
   const [targetApp, setTargetApp] = useState<TargetModelDrivenApp>();
   const [tables, setTables] = useState<TargetTable[]>([]);
   const [manualAppId, setManualAppId] = useState('');
+  const [agentHarness, setAgentHarness] = useState<CopilotStudioHarness>('standard');
   const [agentLink, setAgentLink] = useState('');
+  const [agentSchemaName, setAgentSchemaName] = useState('');
   const [agentEnvironmentId, setAgentEnvironmentId] = useState('');
   const [agent, setAgent] = useState<AgentResolution>();
   const [tenantId, setTenantId] = useState('');
@@ -263,11 +267,26 @@ export function SidecarWizard({
 
   const resolveAgent = async () => {
     if (!isGuid(agentEnvironmentId)) {
-      setLocalError('Enter the Environment ID from Copilot Studio Settings > Advanced > Metadata.');
+      setLocalError('Enter a valid Power Platform Environment ID.');
       return;
     }
-    try { setAgent(await onResolveAgent(agentLink, agentEnvironmentId)); setLocalError(undefined); }
+    let connectionString = agentLink;
+    try {
+      if (agentHarness === 'githubCopilot') {
+        connectionString = buildGitHubCopilotHarnessConnectionString(agentEnvironmentId, agentSchemaName);
+        setAgentLink(connectionString);
+      }
+      setAgent(await onResolveAgent(connectionString, agentEnvironmentId));
+      setLocalError(undefined);
+    }
     catch (caught) { setAgent(undefined); setLocalError(caught instanceof Error ? caught.message : 'Agent resolution failed.'); }
+  };
+  const changeHarness = (value: CopilotStudioHarness) => {
+    setAgentHarness(value);
+    setAgent(undefined);
+    setAgentLink('');
+    setAgentSchemaName('');
+    setLocalError(undefined);
   };
 
   const deploy = async () => {
@@ -400,11 +419,23 @@ export function SidecarWizard({
 
           {step === 2 && (
             <div className={styles.stack}>
-              <div><Title2 as="h2">Connect the agent</Title2><Text className={styles.muted}>In Copilot Studio, open the published agent, then go to Channels &gt; Web app. Under Microsoft 365 Agents SDK, copy the connection string—not the public iframe embed code.</Text></div>
-              <ConfigField field="agentConnectionString" label="Microsoft 365 Agents SDK connection string" hint="Expected format: https://…environment.api.powerplatform.com/copilotstudio/…/bots/{agentName}/conversations?api-version=…" required>
-                <Textarea resize="vertical" value={agentLink} onChange={(_, data) => { setAgentLink(data.value); setAgent(undefined); }} placeholder="Paste the connection string from Channels > Web app" />
+              <div><Title2 as="h2">Connect the agent</Title2><Text className={styles.muted}>Choose the harness used by the published Copilot Studio agent.</Text></div>
+              <ConfigField label="Agent harness" required>
+                <RadioGroup value={agentHarness} onChange={(_, data) => changeHarness(data.value as CopilotStudioHarness)}>
+                  <Radio value="standard" label="Standard harness" />
+                  <Radio value="githubCopilot" label="GitHub Copilot harness" />
+                </RadioGroup>
               </ConfigField>
-              <ConfigField field="environmentId" label="Environment ID" hint="Copy this GUID from Copilot Studio Settings > Advanced > Metadata." required>
+              {agentHarness === 'standard' ? (
+                <ConfigField field="agentConnectionString" label="Microsoft 365 Agents SDK connection string" hint="In Copilot Studio, go to Channels > Web app and copy the Microsoft 365 Agents SDK connection string—not the public iframe embed code." required>
+                  <Textarea resize="vertical" value={agentLink} onChange={(_, data) => { setAgentLink(data.value); setAgent(undefined); }} placeholder="Paste the full connection string from Channels > Web app" />
+                </ConfigField>
+              ) : (
+                <ConfigField label="Agent schema name" hint="Copy the schema name from the agent details. The app constructs the agentic runtime URL." required>
+                  <Input value={agentSchemaName} onChange={(_, data) => { setAgentSchemaName(data.value); setAgent(undefined); setAgentLink(''); }} placeholder="contoso_AgentName" />
+                </ConfigField>
+              )}
+              <ConfigField field="environmentId" label="Environment ID" hint="Copy this GUID from the Power Platform admin center or Copilot Studio metadata." required>
                 <Input value={agentEnvironmentId} onChange={(_, data) => { setAgentEnvironmentId(data.value); setAgent(undefined); }} placeholder="00000000-0000-0000-0000-000000000000" />
               </ConfigField>
               <Button appearance="primary" icon={<BotRegular />} onClick={resolveAgent} disabled={busy}>Resolve agent</Button>

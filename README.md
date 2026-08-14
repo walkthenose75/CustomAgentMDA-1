@@ -29,7 +29,7 @@ Everything below is done through **solution import** and the **administration ap
 ### 2. Prepare the prerequisites
 
 - A Power Platform environment with Dataverse where you are a **System Administrator**.
-- A **published Copilot Studio agent** in that environment. Note its **environment ID** and **schema name**, and copy its **Microsoft 365 Agents SDK connection string** (Copilot Studio → your agent → Channels → Web app / Agents SDK).
+- A **published Copilot Studio agent** in that environment. For a Standard harness agent, copy its **Microsoft 365 Agents SDK connection string** (Copilot Studio → your agent → Channels → Web app / Agents SDK) and note its environment ID. For a GitHub Copilot harness agent, note only its **environment ID** and **schema name**; the administration app constructs the agentic runtime URL.
 - A **Microsoft Entra app registration** for the side pane's browser sign-in. Follow the dedicated [Entra app registration guide (PDF)](docs/user-guides/HR-Management-App-Guide-Entra-App-Registration.pdf) ([Word](docs/user-guides/HR-Management-App-Guide-Entra-App-Registration.docx)). In short: single-tenant **SPA**, redirect URI `https://<your-org>.crm.dynamics.com/WebResources/maftagsc_/copilot/authRedirect.html`, delegated **Power Platform API** permission `CopilotStudio.Copilots.Invoke` with **admin consent**, and **no client secret**.
 
 ### 3. Import the solution
@@ -42,7 +42,7 @@ Open the **Agent Sidecar** app and run the wizard:
 
 1. **Application** — pick the model-driven app to add the sidecar to.
 2. **Tables & forms** — choose the tables; expand any table to select specific forms (the **Information** form is selected by default, others are optional).
-3. **Agent** — paste your agent's Agents SDK connection string and environment ID.
+3. **Agent** — choose Standard or GitHub Copilot harness. Standard agents require the full Agents SDK connection string and environment ID; GitHub Copilot harness agents require only the environment ID and schema name.
 4. **Identity** — enter the SPA app registration's **client ID** and **tenant ID**.
 5. **Review & Deploy** — deploy. The app adds the sidecar to the selected forms, publishes, and verifies the result. From the same app you can later disable, reconcile drift, or uninstall — each with live progress and a downloadable report.
 

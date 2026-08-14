@@ -2,6 +2,9 @@ import type { AgentResolution } from '@/types/sidecar-admin-models';
 
 const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const schemaPattern = /^[A-Za-z][A-Za-z0-9_]{2,199}$/;
+const githubCopilotHarnessPath = ['copilotstudio', 'agenticruntime', '3p', 'dataverse-backed', 'authenticated', 'bots'];
+
+export type CopilotStudioHarness = 'standard' | 'githubCopilot';
 
 function valueAfterSegment(segments: string[], segment: string): string | undefined {
   const index = segments.findIndex((item) => item.toLowerCase() === segment.toLowerCase());
@@ -33,13 +36,22 @@ export function parseCopilotStudioConnectionString(connectionString: string, env
     valueAfterSegment(segments, 'bots');
 
   if (!guidPattern.test(normalizedEnvironmentId)) {
-    throw new Error('Enter a valid Environment ID from Copilot Studio Settings > Advanced > Metadata.');
+    throw new Error('Enter a valid Power Platform Environment ID.');
   }
-  if (!segments.some((segment) => segment.toLowerCase() === 'conversations')) {
-    throw new Error('Paste the Microsoft 365 Agents SDK connection string ending in /conversations, not a public web chat URL.');
+  const normalizedSegments = segments.map((segment) => segment.toLowerCase());
+  const isStandardHarness = normalizedSegments.includes('conversations');
+  const isGitHubCopilotHarness =
+    normalizedSegments.length === githubCopilotHarnessPath.length + 1 &&
+    githubCopilotHarnessPath.every((segment, index) => normalizedSegments[index] === segment) &&
+    url.searchParams.get('api-version') === '1';
+  if (!isStandardHarness && !isGitHubCopilotHarness) {
+    throw new Error('Use a Standard harness Agents SDK URL ending in /conversations or a GitHub Copilot harness agentic runtime URL.');
   }
   if (!schemaName || !schemaPattern.test(schemaName)) {
     throw new Error('The Agents SDK connection string does not contain a valid /bots/{agentName}/ segment.');
+  }
+  if (isGitHubCopilotHarness && url.hostname.toLowerCase() !== getPowerPlatformEnvironmentApiHost(normalizedEnvironmentId)) {
+    throw new Error('The GitHub Copilot harness URL does not match the supplied Environment ID.');
   }
 
   const displayName = schemaName
@@ -53,6 +65,23 @@ export function parseCopilotStudioConnectionString(connectionString: string, env
     environmentId: normalizedEnvironmentId,
     published: true,
   };
+}
+
+export function buildGitHubCopilotHarnessConnectionString(environmentId: string, schemaName: string): string {
+  const normalizedEnvironmentId = environmentId.trim().toLowerCase();
+  const normalizedSchemaName = schemaName.trim();
+  if (!guidPattern.test(normalizedEnvironmentId)) {
+    throw new Error('Enter a valid Power Platform Environment ID.');
+  }
+  if (!schemaPattern.test(normalizedSchemaName)) {
+    throw new Error('Enter a valid Copilot Studio agent schema name.');
+  }
+  return `https://${getPowerPlatformEnvironmentApiHost(normalizedEnvironmentId)}/copilotstudio/agenticruntime/3p/dataverse-backed/authenticated/bots/${normalizedSchemaName}?api-version=1`;
+}
+
+function getPowerPlatformEnvironmentApiHost(environmentId: string): string {
+  const compactEnvironmentId = environmentId.replace(/-/g, '').toLowerCase();
+  return `${compactEnvironmentId.slice(0, 30)}.${compactEnvironmentId.slice(30)}.environment.api.powerplatform.com`;
 }
 
 export function isGuid(value: string): boolean {

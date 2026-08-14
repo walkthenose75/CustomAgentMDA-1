@@ -51,6 +51,24 @@ describe('Agent Sidecar Administration', () => {
     expect(await screen.findByText('Tenant ID must be a valid GUID.')).toBeTruthy();
   });
 
+  it('constructs the connection string for a GitHub Copilot harness agent', async () => {
+    render(<App />, { initialRoute: '/new' });
+    fireEvent.click(await screen.findByRole('button', { name: /Sales Workspace/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'GitHub Copilot harness' }));
+    expect(screen.queryByRole('textbox', { name: /Microsoft 365 Agents SDK connection string/ })).toBeNull();
+    fireEvent.change(screen.getByRole('textbox', { name: /Agent schema name/ }), {
+      target: { value: 'contoso_FieldGuide' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: /Environment ID/ }), {
+      target: { value: 'f9b87f8b-0abf-e629-affb-b13195d1ed14' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve agent' }));
+    expect((await screen.findAllByText('Field Guide')).length).toBeGreaterThan(0);
+  });
+
   it('opens a sidecar and automatically validates health', async () => {
     render(<App />);
     const manageButtons = await screen.findAllByRole('button', { name: 'Manage sidecar' });
