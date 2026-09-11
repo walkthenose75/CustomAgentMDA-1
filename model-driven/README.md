@@ -23,10 +23,13 @@ ID, Directory (tenant) ID, Power Platform environment ID, Copilot Studio agent
 schema name, and the Microsoft 365 Agents SDK direct-connect URL. The generic
 runtime resolves an enabled configuration by the current Model-driven App ID
 and passes the saved URL to `ConnectionSettings.directConnectUrl`, including
-for GHCP harness agentic-runtime endpoints. Invalid configured URLs fail closed
-instead of falling back to the SDK's legacy generated endpoint. The current HR
-values remain in `hrSidecarBootstrap.ts` as a compatibility bridge. No client
-secret is created or shipped, and MSAL tokens use memory storage only.
+for GHCP harness agentic-runtime endpoints. The standard route is documented by
+the Agents SDK; the GHCP `/copilotstudio/agenticruntime/3p/` route remains
+experimental until Microsoft documents it as a stable production contract.
+Invalid configured URLs fail closed instead of falling back to the SDK's legacy
+generated endpoint. The current HR values remain in `hrSidecarBootstrap.ts` as
+a compatibility bridge. No client secret is created or shipped, and MSAL tokens
+use memory storage only.
 
 ## Build
 

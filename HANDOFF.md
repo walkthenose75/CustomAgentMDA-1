@@ -13,11 +13,13 @@ The core capability is **complete and working end to end** in two environments. 
 ## Current status — all working and deployed
 
 - **Admin app** (Power Apps Code App, System Administrator only): 5-step wizard — Application → Tables & forms → Agent → Identity → Review/Deploy. Deploy, disable, reconcile, and uninstall all work with **live per-form progress** and a **downloadable JSON report**.
+- **Agent discovery**: the wizard lists compatible published custom agents from the current environment, classifies Standard versus GitHub Copilot harness agents from Dataverse metadata, and saves the harness-specific direct-connect URL.
 - **Per-form selection**: tables default off; expand a table to pick individual forms; the **Information** form is selected by default. Deploy binds only selected forms.
 - **Sign-in**: delegated MSAL PKCE completed via a same-origin **localStorage handshake** (COOP-proof); succeeds on the first attempt; loading splash title comes from the configured pane title.
 - **Navigation context**: the launcher writes the current form context to localStorage on every OnLoad; the sidecar watches it and proactively pushes a fresh `pvaSetContext` into the live conversation, plus a trusted per-message envelope.
+- **Harness-specific runtime**: the side pane passes the saved URL through `ConnectionSettings.directConnectUrl`, preserving Standard and GitHub Copilot harness routes. The GHCP `/copilotstudio/agenticruntime/3p/` route remains experimental until Microsoft documents it as a stable production contract.
 - **Deployed** to dev (`carremacodeapps`) and destination (`carrema Sales CS` / `org862d1967`). README repositioned as a reusable product.
-- **Green baseline**: `npm run typecheck`, `npm test` (26), `npm run lint`, `npm run build`; model-driven `node model-driven/build.mjs` + `node --test model-driven/build.test.mjs` (6).
+- **Green baseline**: `npm run typecheck`, `npm test` (41), `npm run lint`, `npm run build`; model-driven `node model-driven/build.mjs` + `node --test model-driven/build.test.mjs` (7).
 
 ## Environments and identity
 
@@ -33,7 +35,7 @@ The core capability is **complete and working end to end** in two environments. 
 - Solutions: **`AgentSidecarCore`** (reusable — the deliverable), `HRAgentSidecar` (HR reference).
 - Code App id `71d3fa20-9990-4622-9775-11b56f2ed893` (canvasapp `maftagsc_agentsidecar_4b928`).
 - Both SPA app regs are single-tenant SPA with delegated `CopilotStudio.Copilots.Invoke` + admin consent; redirect URI is `<org>/WebResources/maftagsc_/copilot/authRedirect.html`.
-- GitHub: `https://github.com/martycarreras-psnl/CustomAgentMDA` (branch `main`, latest `f90ada3`).
+- GitHub: `https://github.com/martycarreras-psnl/CustomAgentMDA`.
 
 ## Deployment pipeline
 

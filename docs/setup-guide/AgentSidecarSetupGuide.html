@@ -425,8 +425,8 @@
       <h3><span class="badge">2</span> Copilot Studio agent</h3>
       <p class="sub">Prepare a published custom agent in the same environment as the Code App. The administration app discovers compatible agents and detects their harness automatically.</p>
       <div class="callout warn">
-        <div class="t">Version note — GitHub Copilot harness GA as of 3 August 2026</div>
-        These steps target the <b>generally available</b> Copilot Studio experience as of <b>3 Aug 2026</b>. Microsoft updates this product frequently; if a menu label differs, look for the equivalent under the agent's <b>Settings</b> area.
+        <div class="t">Compatibility note — GitHub Copilot harness support is experimental</div>
+        Standard-harness connectivity uses the documented Agents SDK route. GitHub Copilot harness connectivity currently uses the <code>/copilotstudio/agenticruntime/3p/</code> route, which Microsoft has not documented as a stable production contract. Validate that route in your environment before relying on it for production workloads.
       </div>
 
       <ol class="steps">

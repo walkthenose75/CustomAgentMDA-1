@@ -29,7 +29,7 @@ Everything below is done through **solution import** and the **administration ap
 ### 2. Prepare the prerequisites
 
 - A Power Platform environment with Dataverse where you are a **System Administrator**.
-- A **published custom Copilot Studio agent** in that environment. The administration app discovers compatible Standard and GitHub Copilot harness agents, identifies their harness from Dataverse metadata, and constructs the correct runtime URL.
+- A **published custom Copilot Studio agent** in that environment. The administration app discovers compatible Standard and GitHub Copilot harness agents, identifies their harness from Dataverse metadata, and constructs the correct runtime URL. Standard-harness connectivity uses the documented Agents SDK route; GitHub Copilot harness connectivity currently uses the `/copilotstudio/agenticruntime/3p/` route and should be treated as experimental until Microsoft documents it as a stable production contract.
 - A **Microsoft Entra app registration** for the side pane's browser sign-in. Follow the dedicated [Entra app registration guide (PDF)](docs/user-guides/HR-Management-App-Guide-Entra-App-Registration.pdf) ([Word](docs/user-guides/HR-Management-App-Guide-Entra-App-Registration.docx)). In short: single-tenant **SPA**, redirect URI `https://<your-org>.crm.dynamics.com/WebResources/maftagsc_/copilot/authRedirect.html`, delegated **Power Platform API** permission `CopilotStudio.Copilots.Invoke` with **admin consent**, and **no client secret**.
 
 ### 3. Import the solution
