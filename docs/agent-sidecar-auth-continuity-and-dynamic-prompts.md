@@ -225,12 +225,12 @@ Tests: `model-driven/build.test.mjs` — config validation, chip render + role f
 
 | Phase | Work | Status |
 |-------|------|--------|
-| 0 | Git: fork on GitHub, add fork remote, feature branch `feature/auth-refresh-and-dynamic-prompts` off `main`; PR upstream at the end | Branch created; fork/PR pending user GitHub auth |
+| 0 | Git: fork on GitHub, add fork remote, feature branch `feature/auth-refresh-and-dynamic-prompts` off `main`; PR upstream at the end | **Done** — fork `walkthenose75/CustomAgentMDA-1`, branch pushed, **PR #3** open upstream |
 | 1 | HTML slide deck (Fluent/Microsoft themed) — exec summary + technical detail + roadmap | **Done** |
 | 2 | Auth continuity code (Section 2.7) | **Done** — validated: model-driven build + typecheck + 9 tests, main typecheck, lint, 41 vitest |
 | 3 | Dynamic prompts Option A (Section 3.5) | Runtime **done** — config model, role filter, chip bar, bundled `promptCatalog.ts` merged over **both** the Dataverse and bootstrap configs, tests. Works in real deployments with no schema change. Admin authoring UI is a future enhancement (needs a binding column). |
 | 4 | ADR 0007 documenting Option A choice + Option B alternative | This doc + ADR |
-| 5 | Green baseline, push to fork, open PR upstream | Pending |
+| 5 | Green baseline, push to fork, open PR upstream | **Done** — baseline green; pushed; PR https://github.com/martycarreras-psnl/CustomAgentMDA/pull/3 |
 
 **Green baseline (must stay green):**
 `npm run typecheck` · `npm test` · `npm run lint` · `npm run build` ·
