@@ -41,6 +41,13 @@ administration Code App**. The dynamic-prompt catalog is bundled inside `agentSi
 >
 > **Action:** confirm the intended target environment and `pac auth create --environment <URL>` to it
 > if it is not already a profile, then deploy **only the two changed web resources** via a route below.
+>
+> **Update (target confirmed 2026-09-14):** the stakeholder selected **HLS Sandbox**
+> (`https://hlssandbox.crm.dynamics.com/`, env `6cc6488b-2960-eea4-ab77-0adaa7bf3a13`, `pac` profile
+> `[1]`). A read-only scan shows HLS Sandbox has **no** sidecar solution yet, so this is a **greenfield
+> install** (solution import + Code App push + config), not a two-file update — see **Appendix B** for
+> the confirmed facts, the two inputs still required (target agent + Entra app registration), and the
+> turnkey sequence.
 
 ---
 
@@ -252,3 +259,93 @@ Because there is no schema change, rollback is a pure web-resource republish —
 | Merge applied to Dataverse **and** bootstrap configs | `.../copilot/agentSidePane.ts` (after `getByAppId`) |
 | Chip bar markup + styles | `.../copilot/agentSidePane.template.html` |
 | Tests (13) | `model-driven/build.test.mjs` |
+
+---
+
+## Appendix B — HLS Sandbox greenfield install (target confirmed 2026-09-14)
+
+The stakeholder confirmed **HLS Sandbox** as the deployment target. A read-only `pac` scan shows this
+is a **first-time (greenfield) install**, not the two-file web-resource update Routes 1/1a/2 above
+assume — HLS Sandbox does **not** yet contain any sidecar solution or web resources.
+
+### B.1 Confirmed environment facts
+
+| Fact | Value |
+|---|---|
+| Environment | **HLS Sandbox** |
+| Org URL | `https://hlssandbox.crm.dynamics.com/` |
+| Environment ID | `6cc6488b-2960-eea4-ab77-0adaa7bf3a13` |
+| `pac auth` profile | `[1] thompsonkyle@microsoft.com` (a **user** profile — required for `pac code push`) |
+| Sidecar solution present? | **No** — none of the 11 solutions is sidecar / `maftagsc` / `AgentSidecarCore` / `HRAgentSidecar` |
+
+Because it is greenfield, importing this repo's `HRAgentSidecar` solution here **is** appropriate
+(unlike Contoso - Dev, which already runs a *different* solution — see the §0 caution). The import
+creates the web resources, the binding tables (`maftagsc_sidecarconfiguration`,
+`maftagsc_targetbinding`), the model-driven app, the publisher (`agentsidecar` / prefix `maftagsc`)
+and the security roles in one step.
+
+### B.2 Two inputs still required from the app owner (decisions, not steps)
+
+1. **Which Copilot Studio agent should the sidecar surface?** HLS Sandbox already has six published
+   agents — pick one (or name a new one). The pane binds to the Dataverse `bot` row by id:
+
+   | Agent (bot) | Copilot / bot id |
+   |---|---|
+   | Smooth Operator bot | `6459535b-3455-f111-bec7-000d3a342252` |
+   | Careflow | `8e6f6f87-9f53-f111-bec7-000d3a342f6d` |
+   | AI Heatmap Assessment Generator | `8c6e96dc-1c43-f111-88b5-000d3a342a36` |
+   | HLS AI Heatmap Assessment | `96c593e9-9ce3-47d9-9315-45b123e78b74` |
+   | CSAM Incentive Program Finder | `d1e77642-8254-f111-bec7-000d3a34270d` |
+   | Copilot in Power Apps - AI Heatmap Admin | `733f1c5c-021d-f111-8341-000d3a342340` |
+
+2. **Entra app registration for the Code App / delegated auth.** `power.config.json` currently carries
+   `appId 71d3fa20-9990-4622-9775-11b56f2ed893` ("Agent Sidecar"), bound to the *original* (unreachable)
+   environment. For HLS Sandbox, confirm either (a) that same app registration is valid in this tenant
+   **and** registered as an **Application User** in HLS Sandbox with a security role, or (b) create a new
+   registration per `.github/instructions/00-environment-setup.instructions.md` (Step 1) and use its
+   client id. Delegated per-user identity (the entire auth-continuity story) depends on this being right.
+
+### B.3 Turnkey install sequence (run once the B.2 inputs are confirmed)
+
+```powershell
+cd C:\VSCodeProjects\the-sidecar-app\CustomAgentMDA
+
+# 0) Target the environment (profile [1] is already HLS Sandbox — a user profile, needed for code push)
+pac auth select --index 1
+pac org who        # expect Org URL https://hlssandbox.crm.dynamics.com/
+
+# 1) Import the solution (greenfield: creates web resources + tables + model-driven app in one step)
+#    If you only have unpacked source under .\solution, pack first:
+#      pac solution pack --zipfile .\solution\solution-unmanaged.zip --folder .\solution --packagetype Unmanaged
+pac solution import --path .\solution\solution-unmanaged.zip --publish-changes --activate-plugins true
+
+# 2) Repoint the Code App config to HLS Sandbox, then push the Code App into the solution.
+#    Edit power.config.json:
+#      environmentId -> 6cc6488b-2960-eea4-ab77-0adaa7bf3a13
+#      appId         -> <confirmed HLS app-registration client id>   (see B.2 #2)
+npm run build
+pac code push -s "HRAgentSidecar"      # -s = solution UNIQUE name; REQUIRED on the FIRST push
+
+# 3) Seed sidecar configuration (maker portal or data import):
+#    - one maftagsc_sidecarconfiguration row (app-level config; references the chosen bot/agent)
+#    - maftagsc_targetbinding rows mapping each entity/form (e.g. opportunity, incident) to that agent
+#    The bundled prompt catalog (promptCatalog.ts) supplies the chips with NO schema change.
+
+# 4) Publish + verify
+pac solution publish
+#    then run §4 live verification (prompt chips, role gating, silent refresh, reconnect)
+```
+
+> **Auth note (from `00-environment-setup.instructions.md`).** `pac code push` requires a **user**
+> profile — profile `[1] thompsonkyle@microsoft.com` qualifies; a service-principal profile would be
+> rejected by the BAP checkAccess API. Get `-s "HRAgentSidecar"` right on the *first* push — a bare
+> push silently creates the app **outside** the solution and cannot be retro-associated (recovery =
+> delete and re-push with `-s`).
+
+### B.4 Why this was not executed autonomously
+
+A greenfield install **mutates a real Dataverse environment** (solution import + Code App push + config
+records) and depends on the two B.2 inputs that only the app owner can supply: **which agent** to
+surface (six candidates, none obviously "the" sidecar agent) and a **valid Entra app registration** for
+HLS Sandbox. Proceeding on a guess would risk a broken or mis-wired install — pointing at the wrong
+agent, or failing delegated auth. With those two inputs confirmed, B.3 is a ~15-minute turnkey run.
