@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Agent Sidecar — Auth Continuity &amp; Dynamic Prompts</title>
+<script>
+  (() => {
+    const param = new URLSearchParams(window.location.search).get("scoutTheme");
+    const theme =
+      param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+</script>
+<style>
+/* Fluent UI v9 / Microsoft design tokens (light) — brand #0f6cbd matches the app's Web Chat accent */
+:root {
+  color-scheme: light;
+  --cp-bg: #faf9f8;            /* neutralBackground3 */
+  --cp-bg-elevated: #ffffff;
+  --cp-surface: #ffffff;        /* neutralBackground1 */
+  --cp-surface-soft: #f5f5f5;   /* neutralBackground2 */
+  --cp-border: #d1d1d1;         /* neutralStroke1 */
+  --cp-border-strong: #a19f9d;
+  --cp-text: #242424;           /* neutralForeground1 */
+  --cp-text-muted: #616161;     /* neutralForeground2 */
+  --cp-text-soft: #707070;
+  --cp-accent: #0f6cbd;         /* colorBrandBackground */
+  --cp-accent-hover: #115ea3;   /* brandHover */
+  --cp-accent-soft: rgba(15, 108, 189, 0.10);
+  --cp-accent-fg: #ffffff;
+  --cp-success: #107c10;        /* Fluent green */
+  --cp-danger: #d13438;         /* Fluent red */
+  --cp-warning: #f7630c;        /* Fluent orange */
+  --cp-link: #0f6cbd;
+  --cp-shadow: 0 8px 16px rgba(0, 0, 0, 0.14);   /* Fluent shadow16 */
+  --cp-overlay: rgba(255, 255, 255, 0.8);
+  --cp-panel: rgba(255, 255, 255, 0.86);
+  --cp-panel-strong: rgba(255, 255, 255, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.55);
+  --cp-highlight: rgba(15, 108, 189, 0.12);
+}
+/* Fluent UI v9 / Microsoft design tokens (dark web theme) */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #1f1f1f;             /* neutralBackground3 (dark) */
+  --cp-bg-elevated: #292929;
+  --cp-surface: #292929;        /* neutralBackground1 (dark) */
+  --cp-surface-soft: #333333;   /* neutralBackground2 (dark) */
+  --cp-border: #414141;         /* neutralStroke1 (dark) */
+  --cp-border-strong: #666666;
+  --cp-text: #f5f5f5;           /* neutralForeground1 (dark) */
+  --cp-text-muted: #adadad;     /* neutralForeground2 (dark) */
+  --cp-text-soft: #969696;
+  --cp-accent: #479ef5;         /* brandForeground (dark) */
+  --cp-accent-hover: #62abf5;
+  --cp-accent-soft: rgba(71, 158, 245, 0.16);
+  --cp-accent-fg: #1a1a1a;
+  --cp-success: #54b054;
+  --cp-danger: #f1707b;
+  --cp-warning: #f7893f;
+  --cp-link: #479ef5;
+  --cp-shadow: 0 8px 16px rgba(0, 0, 0, 0.40);
+  --cp-overlay: rgba(41, 41, 41, 0.88);
+  --cp-panel: rgba(41, 41, 41, 0.72);
+  --cp-panel-strong: rgba(41, 41, 41, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.04);
+  --cp-highlight: rgba(71, 158, 245, 0.14);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--cp-bg);
+  color: var(--cp-text);
+  font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+code, .mono { font-family: Consolas, "Courier New", Courier, monospace; }
+
+/* Deck shell */
+.deck { height: 100vh; width: 100vw; position: relative; }
+.slide {
+  position: absolute; inset: 0;
+  display: none;
+  flex-direction: column;
+  padding: 4.5vh 6vw 9vh;
+  animation: fade .35s ease;
+  overflow-y: auto;
+}
+.slide.active { display: flex; }
+@keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.kicker {
+  display: inline-flex; align-items: center; gap: .5rem;
+  color: var(--cp-accent); font-weight: 600; font-size: .8rem;
+  letter-spacing: .12em; text-transform: uppercase; margin-bottom: 1rem;
+}
+.kicker::before { content: ""; width: 26px; height: 2px; background: var(--cp-accent); display: inline-block; }
+h1 { font-size: clamp(2rem, 4.4vw, 3.4rem); line-height: 1.06; letter-spacing: -0.02em; }
+h2 { font-size: clamp(1.5rem, 3vw, 2.2rem); line-height: 1.12; letter-spacing: -0.015em; margin-bottom: 1.4rem; }
+h3 { font-size: 1.05rem; margin-bottom: .5rem; }
+p { color: var(--cp-text-muted); font-size: 1.02rem; line-height: 1.6; max-width: 62ch; }
+.lead { font-size: 1.2rem; color: var(--cp-text); max-width: 70ch; }
+.muted { color: var(--cp-text-muted); }
+.small { font-size: .85rem; }
+
+/* Title slide */
+.title-wrap { justify-content: center; }
+.title-wrap h1 { max-width: 20ch; }
+.title-sub { margin-top: 1.4rem; font-size: 1.25rem; color: var(--cp-text-muted); max-width: 64ch; }
+.pill-row { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 2.2rem; }
+.pill {
+  border: 1px solid var(--cp-border); background: var(--cp-surface);
+  border-radius: 999px; padding: .45rem 1rem; font-size: .85rem; color: var(--cp-text);
+  box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14);
+}
+.pill b { color: var(--cp-accent); }
+
+/* Cards + grids */
+.grid { display: grid; gap: 1rem; }
+.g2 { grid-template-columns: repeat(2, 1fr); }
+.g3 { grid-template-columns: repeat(3, 1fr); }
+.card {
+  background: var(--cp-surface); border: 1px solid var(--cp-border);
+  border-radius: 8px; padding: 1.25rem 1.35rem;
+  box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14);
+}
+.card h3 { display: flex; align-items: center; gap: .55rem; }
+.card p { font-size: .95rem; }
+.tag { display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: .2rem .5rem; border-radius: 6px; background: var(--cp-accent-soft); color: var(--cp-accent); }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.dot.a { background: var(--cp-accent); }
+.dot.s { background: var(--cp-success); }
+.dot.w { background: var(--cp-warning); }
+.dot.d { background: var(--cp-danger); }
+
+ul.clean { list-style: none; display: flex; flex-direction: column; gap: .7rem; margin-top: .4rem; }
+ul.clean li { position: relative; padding-left: 1.5rem; color: var(--cp-text-muted); line-height: 1.5; font-size: .98rem; }
+ul.clean li::before { content: ""; position: absolute; left: 0; top: .55em; width: 8px; height: 8px; border-radius: 2px; background: var(--cp-accent); }
+ul.clean li b { color: var(--cp-text); }
+
+.callout {
+  border-left: 3px solid var(--cp-accent); background: var(--cp-accent-soft);
+  padding: 1rem 1.2rem; border-radius: 0 6px 6px 0; margin-top: 1rem;
+}
+.callout.warn { border-left-color: var(--cp-warning); background: rgba(245, 158, 11, 0.08); }
+.callout p { color: var(--cp-text); max-width: 74ch; }
+
+pre {
+  background: var(--cp-surface-soft); border: 1px solid var(--cp-border);
+  border-radius: 6px; padding: 1rem 1.15rem; overflow-x: auto; margin-top: .8rem;
+  font-family: Consolas, "Courier New", Courier, monospace; font-size: .86rem; line-height: 1.5; color: var(--cp-text);
+}
+pre .c { color: var(--cp-text-muted); }
+pre .k { color: var(--cp-accent); }
+
+/* Flow steps */
+.flow { display: flex; align-items: stretch; gap: .6rem; flex-wrap: wrap; margin-top: 1.2rem; }
+.step {
+  flex: 1 1 150px; background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 8px;
+  padding: 1rem; box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14); position: relative;
+}
+.step .n { font-size: .75rem; font-weight: 700; color: var(--cp-accent); }
+.step h4 { font-size: .95rem; margin: .3rem 0; }
+.step p { font-size: .82rem; }
+
+/* Roadmap */
+.rm { display: flex; flex-direction: column; gap: .7rem; margin-top: 1rem; }
+.rm-row { display: grid; grid-template-columns: 42px 1fr; gap: 1rem; align-items: start; }
+.rm-num { width: 42px; height: 42px; border-radius: 8px; background: var(--cp-accent); color: var(--cp-accent-fg);
+  display: grid; place-items: center; font-weight: 700; }
+.rm-row .card { padding: .9rem 1.1rem; }
+
+/* Table */
+table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: .92rem; }
+th, td { text-align: left; padding: .7rem .8rem; border-bottom: 1px solid var(--cp-border); }
+th { color: var(--cp-text-soft); font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; }
+td b { color: var(--cp-text); }
+
+/* Nav */
+.nav {
+  position: fixed; bottom: 1.1rem; right: 1.4rem; display: flex; align-items: center; gap: .5rem; z-index: 20;
+}
+.nav button {
+  background: var(--cp-surface); color: var(--cp-text); border: 1px solid var(--cp-border);
+  border-radius: 6px; width: 40px; height: 40px; font-size: 1.1rem; cursor: pointer;
+  box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14); transition: .15s;
+}
+.nav button:hover { border-color: var(--cp-accent); color: var(--cp-accent); }
+.counter { font-size: .85rem; color: var(--cp-text-muted); min-width: 54px; text-align: center; }
+.progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--cp-accent); z-index: 30; transition: width .3s ease; }
+.brand { position: fixed; top: 1.1rem; left: 1.5rem; font-size: .82rem; color: var(--cp-text-soft); z-index: 20; letter-spacing: .02em; }
+.brand b { color: var(--cp-accent); }
+.hint { position: fixed; bottom: 1.25rem; left: 1.5rem; font-size: .74rem; color: var(--cp-text-soft); z-index: 20; }
+.section-label { position: fixed; top: 1.1rem; right: 1.5rem; font-size: .75rem; color: var(--cp-text-soft); z-index: 20; text-transform: uppercase; letter-spacing: .1em; }
+@media (max-width: 780px) {
+  .g2, .g3 { grid-template-columns: 1fr; }
+  .slide { padding: 6vh 7vw 11vh; }
+}
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<div class="brand"><b>Agent Sidecar</b> · Design Review</div>
+<div class="section-label" id="sectionLabel">Overview</div>
+<div class="deck" id="deck">
+
+  <!-- 1. Title -->
+  <section class="slide active title-wrap" data-section="Overview">
+    <div class="kicker">Dynamics 365 · Copilot Studio · Code App</div>
+    <h1>Making the Sidecar agent feel like part of Dynamics</h1>
+    <p class="title-sub">Two enhancements: keep the agent authenticated for the whole Dynamics session, and surface the right prompts for the form the user is on — grounded in the actual runtime code.</p>
+    <div class="pill-row">
+      <span class="pill">Issue&nbsp;·&nbsp;<b>Auth times out mid-session</b></span>
+      <span class="pill">Question&nbsp;·&nbsp;<b>Form-specific prompts</b></span>
+      <span class="pill">Identity&nbsp;·&nbsp;<b>Stays delegated</b></span>
+    </div>
+  </section>
+
+  <!-- 2. Exec summary -->
+  <section class="slide" data-section="Overview">
+    <div class="kicker">Executive summary</div>
+    <h2>What we're solving, in one glance</h2>
+    <div class="grid g2">
+      <div class="card">
+        <h3><span class="dot d"></span> The problem today</h3>
+        <ul class="clean">
+          <li>Users sign into <b>Dynamics 365 Sales / Service / Field Service</b>, open the sidecar, and must <b>authenticate again</b> to the agent.</li>
+          <li>That agent token <b>expires mid-session</b> (~60–90 min) while the Dynamics session lives on — so the chat breaks and they re-auth.</li>
+          <li>Prompts are generic — no guidance tailored to the <b>Opportunity</b>, <b>Case</b>, or work order they're looking at.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3><span class="dot s"></span> The outcome</h3>
+        <ul class="clean">
+          <li><b>Invisible after a one-time consent.</b> Silent refresh keeps the agent alive; worst case one silent re-auth per day.</li>
+          <li><b>No lost conversations.</b> Token renews behind the scenes; a graceful "Reconnect" chip replaces dead panes.</li>
+          <li><b>Right prompts, right form, right role.</b> A Sales Manager on an Opportunity sees different suggestions than an AE.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout"><p><b>Design principle preserved:</b> the agent keeps answering <b>as the signed-in user</b>, so knowledge stays gated by each person's own permissions. We do <b>not</b> trade that away for convenience.</p></div>
+  </section>
+
+  <!-- 3. How it works today -->
+  <section class="slide" data-section="Authentication">
+    <div class="kicker">Issue #1 · Root cause</div>
+    <h2>The token is captured once — and never refreshed</h2>
+    <p>Your <span class="mono">acquireToken()</span> already does silent-first (good). The real bug is in <span class="mono">renderConversation()</span>: the access token is snapshotted at render time, handed to the client as a static string, and nothing renews it.</p>
+    <pre><span class="c">// model-driven/webresources/maftagsc_/copilot/agentSidePane.ts</span>
+const client = <span class="k">new</span> CopilotStudioClient(settings, token); <span class="c">// token captured ONCE</span>
+...
+activeToken = token;                                     <span class="c">// static string, never refreshed</span></pre>
+    <div class="callout warn"><p>When the ~60–90 min Entra access token expires, the live conversation's calls start returning <b>401</b> and the user is forced to sign in again — the mismatch against the much longer Dynamics session is exactly the bad UX you described.</p></div>
+  </section>
+
+  <!-- 4. Auth solution overview -->
+  <section class="slide" data-section="Authentication">
+    <div class="kicker">Issue #1 · Solution</div>
+    <h2>Four layers that make re-auth (almost) disappear</h2>
+    <div class="grid g2">
+      <div class="card"><h3><span class="tag">Core</span> Silent refresh loop</h3><p>Capture <span class="mono">expiresOn</span>, refresh ~5 min early via <span class="mono">acquireTokenSilent</span>. MSAL renews through the cached rotating refresh token over a <b>CORS POST</b> — no popup, no iframe, no third-party cookies. The conversation never dies.</p></div>
+      <div class="card"><h3><span class="tag">Invisible</span> Shared Entra SSO</h3><p>Pass the Dynamics UPN as <span class="mono">loginHint</span> and try <span class="mono">ssoSilent</span> first. After the one-time consent, the token is obtained with <b>zero UI</b>, riding the existing Entra session.</p></div>
+      <div class="card"><h3><span class="tag">Admin</span> Align with Entra CA</h3><p>Put the SPA app under the same Conditional Access <b>sign-in frequency</b> + persistent browser session as Dynamics so they expire together. SPA refresh tokens cap at 24h → at most one re-auth/day.</p></div>
+      <div class="card"><h3><span class="tag">UX</span> Graceful reconnect</h3><p>If interaction is ever truly required, show an inline <b>"Session expired — Reconnect"</b> chip that resumes the same conversation — instead of a blank pane.</p></div>
+    </div>
+  </section>
+
+  <!-- 5. Why not just reuse Dynamics creds -->
+  <section class="slide" data-section="Authentication">
+    <div class="kicker">Issue #1 · The honest constraints</div>
+    <h2>"Can we authenticate programmatically?" — yes, via silent SSO</h2>
+    <div class="grid g2">
+      <div class="card">
+        <h3><span class="dot w"></span> Why not literally reuse Dynamics' creds</h3>
+        <p>Dynamics never exposes its Entra access token to page script, and there's no supported API to mint a <span class="mono">CopilotStudio.Copilots.Invoke</span> token from <span class="mono">Xrm</span>. "Programmatic auth" in practice = <b>silent SSO against the shared Entra session</b> — which is exactly what <span class="mono">ssoSilent</span> does.</p>
+      </div>
+      <div class="card">
+        <h3><span class="dot d"></span> The tempting shortcut to avoid</h3>
+        <p>Your repo still ships a disabled DirectLine <b>token broker</b>. A server-minted bot token <i>would</i> make auth fully invisible — but the agent would answer as a <b>service identity</b>, not the user, breaking per-user knowledge security. Keep delegated.</p>
+      </div>
+    </div>
+    <div class="callout"><p><b>Net result:</b> from "re-auth mid-session" → <b>invisible after a one-time consent</b>, with at most one silent-or-single-click re-auth per 24 hours.</p></div>
+  </section>
+
+  <!-- 6. Dynamic prompts intro -->
+  <section class="slide" data-section="Dynamic Prompts">
+    <div class="kicker">Question #2 · You already have the hook</div>
+    <h2>Form-aware prompts, using context you already send</h2>
+    <p>The runtime already resolves the current table via <span class="mono">getEntityBinding(configuration, context.entityName)</span>, and the context envelope + <span class="mono">pvaSetContext</span> already carry <b>entityName</b>, <b>recordName</b>, and <b>CurrentUserRoles</b> to the agent. Adding prompts is an extension, not a rebuild.</p>
+    <pre><span class="c">// sidecarConfiguration.ts — the perfect extension point</span>
+<span class="k">export interface</span> SidecarEntityBinding {
+    logicalName: string;
+    screenName: string;
+    prompts?: { label: string; text: string; roles?: string[] }[]; <span class="c">// ← add</span>
+}</pre>
+  </section>
+
+  <!-- 7. Prompts options -->
+  <section class="slide" data-section="Dynamic Prompts">
+    <div class="kicker">Question #2 · Three ways, by who owns the list</div>
+    <h2>Config-driven now, agent-driven documented</h2>
+    <div class="grid g3">
+      <div class="card">
+        <h3><span class="tag">Option A</span></h3>
+        <p><b>Config-driven role-aware chips</b> in the web resource. Deterministic, admin-managed, filtered by the roles you already compute. <b>Chosen for v1.</b></p>
+      </div>
+      <div class="card">
+        <h3><span class="tag">Option B</span></h3>
+        <p><b>Agent-driven</b> via a Copilot Studio topic that branches on <span class="mono">entityName</span> and returns Suggested Actions / Adaptive Card. Managed in Studio. <b>Documented as an option.</b></p>
+      </div>
+      <div class="card">
+        <h3><span class="tag">Option C</span></h3>
+        <p><b>Generative</b> — ask the agent to propose 4 things it can help with for this form/role. Most dynamic, least governable. Future enhancement.</p>
+      </div>
+    </div>
+    <div class="callout"><p><b>Role-aware in action:</b> on the <b>Opportunity</b> form a <b>Sales Manager</b> sees "Summarize deal risk / Coach the rep," while an <b>AE</b> sees "Draft next steps / Who are the stakeholders?" — same form, different chips.</p></div>
+  </section>
+
+  <!-- 8. Prompts flow -->
+  <section class="slide" data-section="Dynamic Prompts">
+    <div class="kicker">Question #2 · Option A data flow</div>
+    <h2>From form load to a contextual answer</h2>
+    <div class="flow">
+      <div class="step"><div class="n">01</div><h4>Navigate / load</h4><p>Nav watcher fires with the current <span class="mono">entityName</span>.</p></div>
+      <div class="step"><div class="n">02</div><h4>Look up prompts</h4><p>Read the binding's <span class="mono">prompts[]</span> for that table.</p></div>
+      <div class="step"><div class="n">03</div><h4>Filter by role</h4><p>Keep chips allowed for <span class="mono">CurrentUserRoles</span>.</p></div>
+      <div class="step"><div class="n">04</div><h4>Render chips</h4><p>Chip bar above the Web Chat input.</p></div>
+      <div class="step"><div class="n">05</div><h4>Send with context</h4><p>Click → existing wrapped <span class="mono">postActivity</span> carries the full envelope.</p></div>
+    </div>
+    <div class="callout"><p><b>v1 persistence:</b> store the prompt catalog as a <b>JSON blob</b> in an existing config column — no Dataverse schema change, so it stays out of plugin-gated provisioning. A dedicated table can come later.</p></div>
+  </section>
+
+  <!-- 9. Roadmap -->
+  <section class="slide" data-section="Roadmap">
+    <div class="kicker">Implementation roadmap</div>
+    <h2>How we'll build it</h2>
+    <div class="rm">
+      <div class="rm-row"><div class="rm-num">0</div><div class="card"><h3>Git setup (fork → branch → PR)</h3><p class="small muted">Fork upstream, feature branch, PR back so the owner can review/merge.</p></div></div>
+      <div class="rm-row"><div class="rm-num">1</div><div class="card"><h3>HTML presentation — this deck</h3><p class="small muted">Built first, in the session workspace.</p></div></div>
+      <div class="rm-row"><div class="rm-num">2</div><div class="card"><h3>Auth continuity</h3><p class="small muted">Silent-refresh loop + <span class="mono">loginHint</span>/<span class="mono">ssoSilent</span> + Reconnect chip in <span class="mono">agentSidePane.ts</span> / launcher.</p></div></div>
+      <div class="rm-row"><div class="rm-num">3</div><div class="card"><h3>Dynamic prompts (Option A)</h3><p class="small muted">Role-aware chips in the runtime + prompt authoring in the admin wizard, persisted as JSON.</p></div></div>
+      <div class="rm-row"><div class="rm-num">4</div><div class="card"><h3>Document Option B</h3><p class="small muted">ADR for the Copilot Studio agent-driven alternative.</p></div></div>
+      <div class="rm-row"><div class="rm-num">5</div><div class="card"><h3>Validate &amp; PR</h3><p class="small muted">Green baseline (typecheck, tests, lint, build, model-driven build+tests) → push → PR upstream.</p></div></div>
+    </div>
+  </section>
+
+  <!-- 10. Guardrails + close -->
+  <section class="slide" data-section="Roadmap">
+    <div class="kicker">Guardrails &amp; next step</div>
+    <h2>What we will not break</h2>
+    <div class="grid g2">
+      <div class="card"><h3><span class="dot a"></span> Preserved by design</h3>
+        <ul class="clean">
+          <li>Keep the <b>localStorage sign-in handshake</b> — no <span class="mono">acquireTokenPopup</span> / redirect-bridge (COOP).</li>
+          <li>Keep <b>delegated identity</b> — no token broker revival.</li>
+          <li><span class="mono">src/generated</span> read-only · HashRouter · Fluent UI v9 · <span class="mono">DataverseFieldLabel</span> for new fields.</li>
+          <li><b>No Dataverse schema change</b> for v1 — JSON-blob persistence.</li>
+        </ul>
+      </div>
+      <div class="card"><h3><span class="dot w"></span> One risk we de-risk early</h3>
+        <p>Whether the Copilot Studio SDK can swap the token without resetting Web Chat — verified first thing in Phase 2, with <b>reconnect-by-<span class="mono">conversationId</span></b> as the fallback.</p>
+        <div class="callout" style="margin-top:1rem"><p><b>Out of scope here:</b> deploying to an environment (live form mutations) and any schema provisioning — both gated on the plugins + a dev environment + your approval.</p></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="hint">← → or Space to navigate · F for fullscreen</div>
+<div class="nav">
+  <button id="prev" aria-label="Previous">‹</button>
+  <span class="counter" id="counter">1 / 10</span>
+  <button id="next" aria-label="Next">›</button>
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  let i = 0;
+  const counter = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  const sectionLabel = document.getElementById('sectionLabel');
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, idx) => s.classList.toggle('active', idx === i));
+    counter.textContent = (i + 1) + ' / ' + slides.length;
+    progress.style.width = ((i + 1) / slides.length * 100) + '%';
+    sectionLabel.textContent = slides[i].dataset.section || '';
+    slides[i].scrollTop = 0;
+  }
+  document.getElementById('next').onclick = () => show(i + 1);
+  document.getElementById('prev').onclick = () => show(i - 1);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); show(i + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(i - 1); }
+    else if (e.key === 'Home') show(0);
+    else if (e.key === 'End') show(slides.length - 1);
+    else if (e.key.toLowerCase() === 'f') { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
+  });
+  show(0);
+</script>
+</body>
+</html>
