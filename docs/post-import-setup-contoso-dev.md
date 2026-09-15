@@ -83,7 +83,7 @@ or directly on the table) using these values. Fields are validated strictly by
 | `paneWidth` | `420` | integer 300–1000 |
 | `webResourceName` | `maftagsc_/copilot/agentSidePane.html` | fixed (must end `.html`) |
 | `iconWebResource` | `WebResources/maftagsc_/copilot/agentGuideLibrary.svg` | fixed |
-| `clientId` | *(from step 2)* | app registration Application (client) ID |
+| `clientId` | `1ae88e3c-3dd4-4132-9dbd-04df09381575` | app registration Application (client) ID — **already created in Contoso‑Dev** ("Agent Sidecar - Delegated Auth (Contoso-Dev)") |
 | `tenantId` | `211793ba-f563-4e53-9d36-f7ce619eda41` | Contoso‑Dev tenant |
 | `environmentId` | `f93f07d8-7d47-ea58-95b8-d71772175b0b` | Contoso‑Dev environment id |
 | `agentSchemaName` | *(your agent schema name)* | Copilot Studio → agent → **Settings → Advanced / Metadata** (e.g. `cr123_myAgent`) |

@@ -32,6 +32,18 @@ export const SIDECAR_PROMPT_CATALOG: Readonly<Record<string, readonly SidecarPro
     maftagsc_benefitenrollment: Object.freeze([
         Object.freeze({ label: "How do I enroll?", text: "What are the steps to complete this benefit enrollment?" }),
         Object.freeze({ label: "Change my election", text: "How do I change my election on this benefit enrollment?" })
+    ]),
+    contoso_incidentreport: Object.freeze([
+        Object.freeze({ label: "Summarize this incident", text: "Summarize this incident report, including the key details, current status, and any actions taken so far." }),
+        Object.freeze({ label: "Recommend next steps", text: "Based on this incident, what are the recommended next steps to investigate and resolve it?" }),
+        Object.freeze({ label: "Find similar incidents", text: "Find similar past incidents and explain how they were resolved." }),
+        Object.freeze({ label: "Draft a status update", text: "Draft a concise status update for stakeholders about this incident." })
+    ]),
+    contoso_incidentprocess: Object.freeze([
+        Object.freeze({ label: "Explain this process", text: "Explain this incident process and what each stage involves." }),
+        Object.freeze({ label: "What's the next step?", text: "Given the current stage of this incident process, what is the next step I should take?" }),
+        Object.freeze({ label: "Escalation guidance", text: "What are the escalation criteria and steps for this incident process?" }),
+        Object.freeze({ label: "Related policies", text: "What policies or guidelines apply to this incident process?" })
     ])
 });
 
