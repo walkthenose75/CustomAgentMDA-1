@@ -189,6 +189,10 @@ test("side pane silently refreshes the delegated token and offers a reconnect", 
     assert.match(source, /scheduleTokenRefresh\(configuration\)/);
     assert.match(source, /async function refreshActiveToken/);
     assert.match(source, /expiresOn: result\.expiresOn/);
+    // A transient background-refresh failure retries silently (bounded) before
+    // downgrading the user to a manual reconnect.
+    assert.match(source, /silentRefreshRetries < MAX_SILENT_REFRESH_RETRIES/);
+    assert.match(source, /function scheduleSilentRefreshRetry/);
     // A fresh token is swapped in while the transcript (store) is preserved.
     assert.match(source, /activeStore \?\? undefined/);
     // Silent SSO uses the Dynamics login hint before ever prompting.

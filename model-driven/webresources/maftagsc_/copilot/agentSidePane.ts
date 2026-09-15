@@ -820,9 +820,18 @@ function renderConversation(
     chat.focus();
 }
 
+// A transient failure during a background refresh (e.g. a brief network drop)
+// should not immediately downgrade the user to a manual reconnect: the current
+// token is still valid through the skew window, so retry silently a bounded
+// number of times before surfacing the reconnect prompt.
+const MAX_SILENT_REFRESH_RETRIES = 3;
+const SILENT_REFRESH_RETRY_DELAY_MS = 60_000;
+let silentRefreshRetries = 0;
+
 // Compute the silent-refresh delay and arm a one-shot timer. Called after every
 // successful token acquisition so the schedule always tracks the freshest token.
 function scheduleTokenRefresh(configuration: SidecarConfiguration): void {
+    silentRefreshRetries = 0;
     if (refreshTimer !== null) {
         window.clearTimeout(refreshTimer);
         refreshTimer = null;
@@ -834,6 +843,17 @@ function scheduleTokenRefresh(configuration: SidecarConfiguration): void {
     refreshTimer = window.setTimeout(() => {
         void refreshActiveToken(configuration);
     }, delayMs);
+}
+
+// Re-arm a short one-shot retry after a transient silent-refresh failure.
+function scheduleSilentRefreshRetry(configuration: SidecarConfiguration): void {
+    if (refreshTimer !== null) {
+        window.clearTimeout(refreshTimer);
+        refreshTimer = null;
+    }
+    refreshTimer = window.setTimeout(() => {
+        void refreshActiveToken(configuration);
+    }, SILENT_REFRESH_RETRY_DELAY_MS);
 }
 
 // Silently renew the delegated token before it expires and swap it into the live
@@ -862,7 +882,16 @@ async function refreshActiveToken(configuration: SidecarConfiguration): Promise<
         );
         scheduleTokenRefresh(configuration);
     } catch {
-        showReconnect();
+        // Transient failure — the live token is still valid through the skew
+        // window, so retry silently a few times before asking the user to
+        // reconnect. (Genuine interaction-required cases return null above and
+        // surface the reconnect prompt immediately, without retrying.)
+        if (silentRefreshRetries < MAX_SILENT_REFRESH_RETRIES) {
+            silentRefreshRetries += 1;
+            scheduleSilentRefreshRetry(configuration);
+        } else {
+            showReconnect();
+        }
     }
 }
 
