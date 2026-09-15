@@ -1,20 +1,18 @@
-import type { SidecarConfiguration, SidecarEntityBinding, SidecarPrompt } from "./sidecarConfiguration";
+import type { SidecarConfiguration, SidecarEntityBinding } from "./sidecarConfiguration";
 import {
     BootstrapSidecarConfigurationRepository,
     DataverseSidecarConfigurationRepository,
     FallbackSidecarConfigurationRepository
 } from "./sidecarConfigurationRepository";
 
+// Bindings intentionally carry no inline prompts: the suggested-prompt catalog
+// (promptCatalog.ts) is the single source of truth and is applied uniformly to
+// both this bootstrap fallback and the Dataverse-backed configuration at runtime.
 function entityBinding(
     logicalName: string,
-    screenName: string,
-    prompts?: readonly SidecarPrompt[]
+    screenName: string
 ): SidecarEntityBinding {
-    return Object.freeze({
-        logicalName,
-        screenName,
-        prompts: prompts ? Object.freeze(prompts.map((prompt) => Object.freeze({ ...prompt }))) : undefined
-    });
+    return Object.freeze({ logicalName, screenName });
 }
 
 const HR_ENTITY_BINDINGS = Object.freeze({
@@ -23,25 +21,11 @@ const HR_ENTITY_BINDINGS = Object.freeze({
     businessunit: entityBinding("businessunit", "Department record form"),
     maftagsc_timeofftype: entityBinding("maftagsc_timeofftype", "Time Off Type record form"),
     maftagsc_timeoffbalance: entityBinding("maftagsc_timeoffbalance", "Time Off Balance record form"),
-    maftagsc_timeoffrequest: entityBinding("maftagsc_timeoffrequest", "Time Off Request record form", [
-        { label: "Submit this request", text: "How do I submit this time off request for approval?" },
-        { label: "Check remaining balance", text: "How much time off balance do I have remaining?" },
-        { label: "Approve requests", text: "As a manager, what are the steps to review and approve a time off request?", roles: ["Manager"] }
-    ]),
-    maftagsc_expensereport: entityBinding("maftagsc_expensereport", "Expense Report record form", [
-        { label: "Add an expense line", text: "How do I add a new expense line to this expense report?" },
-        { label: "What's reimbursable?", text: "Which expenses on this report are reimbursable under policy?" },
-        { label: "Submit for approval", text: "How do I submit this expense report for approval?" }
-    ]),
+    maftagsc_timeoffrequest: entityBinding("maftagsc_timeoffrequest", "Time Off Request record form"),
+    maftagsc_expensereport: entityBinding("maftagsc_expensereport", "Expense Report record form"),
     maftagsc_expenseline: entityBinding("maftagsc_expenseline", "Expense Line record form"),
-    maftagsc_benefitplan: entityBinding("maftagsc_benefitplan", "Benefit Plan record form", [
-        { label: "Explain this plan", text: "Explain the coverage and eligibility for this benefit plan." },
-        { label: "Compare plans", text: "How does this benefit plan compare to the other available plans?" }
-    ]),
-    maftagsc_benefitenrollment: entityBinding("maftagsc_benefitenrollment", "Benefit Enrollment record form", [
-        { label: "How do I enroll?", text: "What are the steps to complete this benefit enrollment?" },
-        { label: "Change my election", text: "How do I change my election on this benefit enrollment?" }
-    ])
+    maftagsc_benefitplan: entityBinding("maftagsc_benefitplan", "Benefit Plan record form"),
+    maftagsc_benefitenrollment: entityBinding("maftagsc_benefitenrollment", "Benefit Enrollment record form")
 });
 
 const HR_SIDECAR_CONFIGURATION: SidecarConfiguration = Object.freeze({

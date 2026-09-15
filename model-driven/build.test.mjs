@@ -251,6 +251,9 @@ test("side pane renders role-aware suggested prompt chips per form", async () =>
     assert.match(paneSource, /function renderPrompts/);
     assert.match(paneSource, /renderPrompts\(configuration\)/);
     assert.match(paneSource, /prompt-chip/);
+    // Prompts are merged over BOTH the Dataverse and bootstrap configs, so chips
+    // appear in a real deployment (where the binding table carries no prompts).
+    assert.match(paneSource, /applyPromptCatalog\(await sidecarConfigurationRepository\.getByAppId/);
     // Clicking a chip sends its text through the normal message pipeline.
     assert.match(paneSource, /"WEB_CHAT\/SEND_MESSAGE", payload: \{ text, method: "keyboard" \}/);
 
@@ -263,4 +266,65 @@ test("side pane renders role-aware suggested prompt chips per form", async () =>
     const html = await read(sourceRoot, "agentSidePane.html");
     assert.match(html, /prompt-chip/);
     assert.match(html, /Submit for approval/);
+});
+
+test("prompt catalog fills bindings that carry no prompts of their own", async () => {
+    const src = await read(sourceRoot, "promptCatalog.ts");
+    const js = (await transform(src, { loader: "ts", format: "esm" })).code;
+    const mod = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+    const { applyPromptCatalog, SIDECAR_PROMPT_CATALOG } = mod;
+
+    // A Dataverse-shaped binding (no prompts column) gets catalog prompts merged in.
+    const bare = {
+        appId: "app",
+        entityBindings: {
+            maftagsc_expensereport: {
+                logicalName: "maftagsc_expensereport",
+                screenName: "Expense Report record form"
+            },
+            maftagsc_timeoffbalance: {
+                logicalName: "maftagsc_timeoffbalance",
+                screenName: "Time Off Balance record form"
+            }
+        }
+    };
+    const merged = applyPromptCatalog(bare);
+    assert.notEqual(merged, bare, "returns a new configuration when prompts are added");
+    assert.deepEqual(
+        merged.entityBindings.maftagsc_expensereport.prompts,
+        SIDECAR_PROMPT_CATALOG.maftagsc_expensereport
+    );
+    // Entities absent from the catalog stay untouched (no empty prompt arrays).
+    assert.equal(merged.entityBindings.maftagsc_timeoffbalance.prompts, undefined);
+    // Input is never mutated.
+    assert.equal(bare.entityBindings.maftagsc_expensereport.prompts, undefined);
+
+    // Binding-authored prompts always win over the catalog.
+    const authored = {
+        appId: "app",
+        entityBindings: {
+            maftagsc_expensereport: {
+                logicalName: "maftagsc_expensereport",
+                screenName: "Expense Report record form",
+                prompts: [{ label: "Custom", text: "Authored prompt" }]
+            }
+        }
+    };
+    const untouched = applyPromptCatalog(authored);
+    assert.equal(untouched, authored, "returns the same reference when nothing changes");
+    assert.equal(untouched.entityBindings.maftagsc_expensereport.prompts[0].label, "Custom");
+
+    // A role-gated catalog prompt is present for manager review.
+    const gated = SIDECAR_PROMPT_CATALOG.maftagsc_timeoffrequest.find(
+        (prompt) => Array.isArray(prompt.roles) && prompt.roles.includes("Manager")
+    );
+    assert.ok(gated, "catalog includes a Manager-gated prompt");
+});
+
+test("bootstrap no longer double-sources prompts (catalog is the single source)", async () => {
+    const bootstrap = await read(sourceRoot, "hrSidecarBootstrap.ts");
+    const catalog = await read(sourceRoot, "promptCatalog.ts");
+    assert.doesNotMatch(bootstrap, /Submit for approval/);
+    assert.match(catalog, /Submit for approval/);
+    assert.match(catalog, /export function applyPromptCatalog/);
 });

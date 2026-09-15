@@ -172,26 +172,39 @@ interface SidecarEntityBinding {
 4. Clicking a chip sends its `text` through the **existing wrapped `postActivity`**, so the full
    form/record context envelope rides along automatically.
 
-**Persistence (v1):** store the prompt catalog as a **JSON blob in an existing config text column**
-(or a JSON web resource) read by `sidecarConfigurationRepository.ts`. This deliberately avoids a
-new Dataverse table (which is plugin-gated provisioning). Seed default prompts from
-`docs/entity-help/entity-help-manifest.json`.
+**Persistence (v1) — bundled prompt catalog.** The runtime resolves configuration from Dataverse
+(`maftagsc_targetbinding` rows) with a fallback to the local bootstrap. The binding table has **no
+prompts column**, and adding one is plugin-gated schema work that also regenerates the read-only
+`src/generated/**` models. To make prompts work in **every** deployment without a schema change, the
+prompt catalog lives in a **bundled TypeScript module** — `promptCatalog.ts` — keyed by entity
+logical name. `applyPromptCatalog(configuration)` merges the catalog over the resolved configuration
+(for both the Dataverse and bootstrap paths) immediately after `getByAppId`. Because the catalog
+ships **inside the already-deployed `agentSidePane.js`**, chips appear in a real environment even
+though Dataverse carries no prompt data. Binding-authored prompts (a future admin surface) always
+take precedence; the catalog only fills the gap. This is the single source of truth — the bootstrap
+no longer inlines prompts.
 
-### 3.4 Admin authoring (Code App) — pending
+### 3.4 Admin authoring (Code App) — future enhancement
+
+The bundled catalog makes prompts fully functional today. A later enhancement can let admins author
+prompts in the wizard and persist them **on the binding** (which then wins over the catalog). That
+requires a `maftagsc_prompts` multiline-text column on `maftagsc_targetbinding` (a schema change that
+regenerates `src/generated/**` against the target environment), plus:
 
 - Extend the wizard's **Tables & forms** step (`SidecarWizard.tsx`) to author prompts per form.
 - Add `prompts` to `TargetForm` / `TargetTable` in `src/types/sidecar-admin-models.ts`.
-- Update the mock and real providers (`mock-sidecar-admin-provider.ts`,
-  `real-sidecar-admin-provider.ts`) and serialization to persist prompts as JSON (no schema change).
+- Update the mock and real providers to read/write `maftagsc_prompts` as JSON.
+- Extend the runtime repository `$select` to read `maftagsc_prompts` and map it onto the binding.
 - Any new editable Dataverse-bound field uses `DataverseFieldLabel` (Code App guardrail).
+
+Until that column exists in the target environment, the bundled catalog is the supported path.
 
 ### 3.5 Files touched (Phase 3)
 
-Runtime: `sidecarConfiguration.ts`, `agentSidePane.ts`, `agentSidePane.template.html`,
-`sidecarConfigurationRepository.ts`, `sidecarUserRoles.ts` (read).
-Admin: `SidecarWizard.tsx`, `sidecar-admin-models.ts`, `mock-sidecar-admin-provider.ts`,
-`real-sidecar-admin-provider.ts`.
-Tests: config validation, chip render + role filter, wizard prompt authoring.
+Runtime: `sidecarConfiguration.ts`, `promptCatalog.ts` (new), `agentSidePane.ts`,
+`agentSidePane.template.html`, `hrSidecarBootstrap.ts`, `sidecarUserRoles.ts` (read).
+Tests: `model-driven/build.test.mjs` — config validation, chip render + role filter, catalog merge
+(binding precedence, no-mutation, role-gated prompt).
 
 ---
 
@@ -215,7 +228,7 @@ Tests: config validation, chip render + role filter, wizard prompt authoring.
 | 0 | Git: fork on GitHub, add fork remote, feature branch `feature/auth-refresh-and-dynamic-prompts` off `main`; PR upstream at the end | Branch created; fork/PR pending user GitHub auth |
 | 1 | HTML slide deck (Fluent/Microsoft themed) — exec summary + technical detail + roadmap | **Done** |
 | 2 | Auth continuity code (Section 2.7) | **Done** — validated: model-driven build + typecheck + 9 tests, main typecheck, lint, 41 vitest |
-| 3 | Dynamic prompts Option A (Section 3.5) | Runtime **done** — config model, role filter, chip bar, seeded HR prompts, tests; admin authoring UI pending |
+| 3 | Dynamic prompts Option A (Section 3.5) | Runtime **done** — config model, role filter, chip bar, bundled `promptCatalog.ts` merged over **both** the Dataverse and bootstrap configs, tests. Works in real deployments with no schema change. Admin authoring UI is a future enhancement (needs a binding column). |
 | 4 | ADR 0007 documenting Option A choice + Option B alternative | This doc + ADR |
 | 5 | Green baseline, push to fork, open PR upstream | Pending |
 

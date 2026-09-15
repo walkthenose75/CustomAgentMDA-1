@@ -11,6 +11,7 @@ import {
 } from "@microsoft/agents-copilotstudio-client";
 import type { Activity } from "@microsoft/agents-activity";
 import { sidecarConfigurationRepository } from "./hrSidecarBootstrap";
+import { applyPromptCatalog } from "./promptCatalog";
 import {
     getBindingPrompts,
     getEntityBinding,
@@ -149,7 +150,7 @@ async function parseLaunchRequest(): Promise<LaunchRequest> {
     }
 
     const appId = normalizeGuid(value.appId);
-    const configuration = await sidecarConfigurationRepository.getByAppId(appId);
+    const configuration = applyPromptCatalog(await sidecarConfigurationRepository.getByAppId(appId));
     const entityName = String(value.entityName || "").trim().toLowerCase();
     if (!getEntityBinding(configuration, entityName)) {
         throw new Error("Screen-specific help isn't available for this table.");
