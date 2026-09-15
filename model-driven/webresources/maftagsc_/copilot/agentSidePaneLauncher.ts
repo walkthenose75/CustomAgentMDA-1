@@ -47,6 +47,7 @@ interface UserRoleCollection {
 
 interface UserSettings {
     roles?: UserRoleCollection;
+    userName?: unknown;
 }
 
 interface GlobalContext {
@@ -90,6 +91,7 @@ interface LaunchContext {
     recordName: string;
     appId: string;
     roles: string[];
+    upn: string;
 }
 
 async function getConfiguration(): Promise<SidecarConfiguration> {
@@ -119,6 +121,20 @@ function getUserRoles(): string[] {
         return normalizeUserRoles(items.map((role) => role?.name));
     } catch {
         return [];
+    }
+}
+
+// Read the signed-in user's UPN from the host global context. It is passed to
+// the pane purely as an MSAL login hint so the delegated agent token can be
+// acquired/renewed silently against the same Entra session the user already has
+// from signing in to Dynamics — never used for authorization decisions.
+function getUpn(): string {
+    try {
+        const userName = Xrm.Utility.getGlobalContext().userSettings?.userName;
+        const value = String(userName ?? "").trim();
+        return value.length <= 320 ? value : "";
+    } catch {
+        return "";
     }
 }
 
@@ -152,7 +168,8 @@ function getLaunchContext(
         recordId,
         recordName,
         appId: configuration.appId,
-        roles: getUserRoles()
+        roles: getUserRoles(),
+        upn: getUpn()
     };
 }
 
@@ -171,7 +188,8 @@ function createPageInput(
             entityName: context.entityName,
             recordId: context.recordId,
             recordName: context.recordName,
-            appId: context.appId
+            appId: context.appId,
+            upn: context.upn
         })
     };
 }

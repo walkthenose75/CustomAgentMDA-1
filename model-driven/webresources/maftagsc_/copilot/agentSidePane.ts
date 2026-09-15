@@ -12,6 +12,7 @@ import {
 import type { Activity } from "@microsoft/agents-activity";
 import { sidecarConfigurationRepository } from "./hrSidecarBootstrap";
 import {
+    getBindingPrompts,
     getEntityBinding,
     normalizeGuid,
     type SidecarConfiguration
@@ -22,6 +23,7 @@ import {
     serializeUserRoles
 } from "./sidecarUserRoles";
 import { createSidecarConnectionSettings } from "./sidecarConnectionSettings";
+import { computeRefreshDelayMs } from "./tokenRefresh";
 
 const ORIGINAL_TEXT_KEY = "hrSidecarOriginalText";
 const AUTH_REQUEST_KEY = "maftagsc.sidecar.authRequest";
@@ -39,6 +41,7 @@ interface LaunchContext {
 interface LaunchRequest {
     configuration: SidecarConfiguration;
     context: LaunchContext;
+    loginHint: string | null;
 }
 
 interface HostPageInput {
@@ -105,6 +108,20 @@ let activeContext: LaunchContext | null = null;
 let activeConfiguration: SidecarConfiguration | null = null;
 let resetInProgress = false;
 let navigationWatcher: number | null = null;
+// Auth-continuity state: the delegated token is silently refreshed before it
+// expires and swapped into the live conversation, so the agent never 401s
+// mid-Dynamics-session. activeStore is preserved across a refresh so the visible
+// transcript survives the connection rebuild the SDK requires (there is no
+// CopilotStudioClient token setter — a fresh token means a fresh client).
+let activeStore: unknown = null;
+let activeExpiresOn: Date | null = null;
+let activeLoginHint: string | null = null;
+let refreshTimer: number | null = null;
+
+interface AcquiredToken {
+    accessToken: string;
+    expiresOn: Date | null;
+}
 
 function getRequiredElement<T extends HTMLElement>(id: string): T {
     const element = document.getElementById(id);
@@ -152,7 +169,8 @@ async function parseLaunchRequest(): Promise<LaunchRequest> {
             recordName: String(value.recordName || "").slice(0, 200),
             appId,
             roles: normalizeUserRoles(value.roles)
-        }
+        },
+        loginHint: normalizeLoginHint(value.upn)
     };
 }
 
@@ -262,6 +280,26 @@ function resolveContext(
     return readSharedContext(configuration, fallback) ?? getCurrentContext(fallback, configuration);
 }
 
+// A login hint (the signed-in Dynamics user's UPN) lets MSAL renew the delegated
+// token silently — via ssoSilent and as loginHint on interactive fallback —
+// reusing the Entra session the user already established when they signed in to
+// Dynamics. Only a UPN-shaped value is accepted; anything else is ignored.
+function normalizeLoginHint(value: unknown): string | null {
+    const hint = String(value ?? "").trim();
+    return hint.length > 0 && hint.length <= 320 && hint.includes("@") ? hint : null;
+}
+
+function readSharedLoginHint(configuration: SidecarConfiguration): string | null {
+    try {
+        const raw = window.localStorage.getItem(`maftagsc.sidecar.context.${configuration.paneId}`);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as { upn?: unknown };
+        return normalizeLoginHint(parsed.upn);
+    } catch {
+        return null;
+    }
+}
+
 function contextSignature(context: LaunchContext): string {
     return [
         context.pageType,
@@ -363,7 +401,10 @@ function getCachedAccount(client: PublicClientApplication): AccountInfo | undefi
  * same-origin localStorage, which COOP and storage partitioning do not break for
  * a first-party context.
  */
-async function runInteractiveSignIn(configuration: SidecarConfiguration): Promise<void> {
+async function runInteractiveSignIn(
+    configuration: SidecarConfiguration,
+    loginHint: string | null
+): Promise<void> {
     const redirectUri = `${window.location.origin}${configuration.redirectPath}`;
     const nonce = crypto.randomUUID();
     const resultKey = `${AUTH_RESULT_PREFIX}${nonce}`;
@@ -372,7 +413,8 @@ async function runInteractiveSignIn(configuration: SidecarConfiguration): Promis
         authority: `https://login.microsoftonline.com/${configuration.tenantId}`,
         redirectUri,
         scope: configuration.scope,
-        nonce
+        nonce,
+        loginHint: loginHint ?? undefined
     }));
     window.localStorage.removeItem(resultKey);
 
@@ -425,8 +467,9 @@ async function runInteractiveSignIn(configuration: SidecarConfiguration): Promis
 
 async function acquireToken(
     interactive: boolean,
-    configuration: SidecarConfiguration
-): Promise<string | null> {
+    configuration: SidecarConfiguration,
+    loginHint: string | null
+): Promise<AcquiredToken | null> {
     const client = await initializeMsal(configuration);
     const account = getCachedAccount(client);
 
@@ -437,20 +480,36 @@ async function acquireToken(
                 scopes: [configuration.scope],
                 account
             });
-            return result.accessToken;
+            return { accessToken: result.accessToken, expiresOn: result.expiresOn };
         } catch (error) {
-            if (!interactive && error instanceof InteractionRequiredAuthError) {
-                return null;
-            }
-            if (!interactive) {
+            if (!interactive && !(error instanceof InteractionRequiredAuthError)) {
                 throw error;
             }
+            // Interaction is required for this account. Before prompting, try a
+            // silent SSO with the Dynamics UPN — the Entra session from the
+            // Dynamics sign-in usually satisfies it with no UI at all.
+            const sso = await acquireTokenViaSso(client, configuration, loginHint);
+            if (sso) {
+                return sso;
+            }
+            if (!interactive) {
+                return null;
+            }
         }
-    } else if (!interactive) {
-        return null;
+    } else {
+        // No cached account in this MSAL instance yet. A silent SSO with the
+        // login hint can still mint a token without prompting; only fall back to
+        // an interactive sign-in when the caller explicitly asked for one.
+        const sso = await acquireTokenViaSso(client, configuration, loginHint);
+        if (sso) {
+            return sso;
+        }
+        if (!interactive) {
+            return null;
+        }
     }
 
-    await runInteractiveSignIn(configuration);
+    await runInteractiveSignIn(configuration, loginHint);
 
     // The popup completed the authorization-code exchange in its own MSAL
     // instance that shares this origin's localStorage. This instance may not
@@ -467,7 +526,7 @@ async function acquireToken(
                     scopes: [configuration.scope],
                     account: signedInAccount
                 });
-                return result.accessToken;
+                return { accessToken: result.accessToken, expiresOn: result.expiresOn };
             } catch (error) {
                 lastError = error;
             }
@@ -477,6 +536,32 @@ async function acquireToken(
     throw lastError instanceof Error
         ? lastError
         : new Error("Sign-in did not complete. Please try again.");
+}
+
+// Attempt a no-prompt token acquisition using the signed-in Dynamics user's UPN.
+// Reuses the existing Entra browser session (established at Dynamics sign-in),
+// so it typically returns a token with zero user interaction. Returns null on
+// any failure so callers can decide whether to prompt interactively.
+async function acquireTokenViaSso(
+    client: PublicClientApplication,
+    configuration: SidecarConfiguration,
+    loginHint: string | null
+): Promise<AcquiredToken | null> {
+    if (!loginHint) {
+        return null;
+    }
+    try {
+        const result = await client.ssoSilent({
+            scopes: [configuration.scope],
+            loginHint
+        });
+        if (result.account) {
+            client.setActiveAccount(result.account);
+        }
+        return { accessToken: result.accessToken, expiresOn: result.expiresOn };
+    } catch {
+        return null;
+    }
 }
 
 function getScreenName(
@@ -583,6 +668,7 @@ function startNavigationWatcher(
         }
         lastSignature = signature;
         activeContext = next;
+        renderPrompts(configuration);
         const dispatch = (store as { dispatch?: (action: WebChatAction) => void }).dispatch;
         if (typeof dispatch !== "function") {
             return;
@@ -617,10 +703,50 @@ function resetWebChatHost(): HTMLElement {
     return replacement;
 }
 
+// Render the current form's role-aware suggested prompts as chips. Clicking a
+// chip sends its text through the same pipeline as a typed message, so the full
+// form/record context envelope rides along. Re-invoked on navigation so the
+// chips always match the form the user is viewing.
+function renderPrompts(configuration: SidecarConfiguration): void {
+    const container = document.getElementById("prompts");
+    if (!container) {
+        return;
+    }
+    container.replaceChildren();
+    const context = activeContext;
+    const prompts = context
+        ? getBindingPrompts(configuration, context.entityName, context.roles)
+        : [];
+    if (prompts.length === 0) {
+        container.hidden = true;
+        return;
+    }
+    for (const prompt of prompts) {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "prompt-chip";
+        chip.textContent = prompt.label;
+        chip.title = prompt.text;
+        chip.addEventListener("click", () => sendPrompt(prompt.text));
+        container.appendChild(chip);
+    }
+    container.hidden = false;
+}
+
+function sendPrompt(text: string): void {
+    const store = activeStore as WebChatStoreApi | null;
+    if (!store || typeof store.dispatch !== "function") {
+        return;
+    }
+    store.dispatch({ type: "WEB_CHAT/SEND_MESSAGE", payload: { text, method: "keyboard" } });
+    getRequiredElement<HTMLElement>("chat").focus();
+}
+
 function renderConversation(
     token: string,
     context: LaunchContext,
-    configuration: SidecarConfiguration
+    configuration: SidecarConfiguration,
+    existingStore?: unknown
 ): void {
     if (
         !window.WebChat ||
@@ -656,7 +782,10 @@ function renderConversation(
             }
         } as Activity);
     };
-    const store = createContextStore(window.WebChat, () => {
+    // Reuse the existing Web Chat store across a silent token refresh so the
+    // transcript survives the connection rebuild; a fresh store (default) starts
+    // a clean conversation (used by "New conversation").
+    const store = existingStore ?? createContextStore(window.WebChat, () => {
         const currentContext = resolveContext(activeContext ?? context, configuration);
         activeContext = currentContext;
         return currentContext;
@@ -683,9 +812,108 @@ function renderConversation(
 
     activeConnection = connection;
     activeToken = token;
+    activeStore = store;
     activeContext = context;
     activeConfiguration = configuration;
+    renderPrompts(configuration);
     chat.focus();
+}
+
+// Compute the silent-refresh delay and arm a one-shot timer. Called after every
+// successful token acquisition so the schedule always tracks the freshest token.
+function scheduleTokenRefresh(configuration: SidecarConfiguration): void {
+    if (refreshTimer !== null) {
+        window.clearTimeout(refreshTimer);
+        refreshTimer = null;
+    }
+    const delayMs = computeRefreshDelayMs(activeExpiresOn, Date.now());
+    if (delayMs === null) {
+        return;
+    }
+    refreshTimer = window.setTimeout(() => {
+        void refreshActiveToken(configuration);
+    }, delayMs);
+}
+
+// Silently renew the delegated token before it expires and swap it into the live
+// conversation without losing the transcript. On genuine interaction-required
+// failures, surface the reconnect prompt instead of letting the agent 401.
+async function refreshActiveToken(configuration: SidecarConfiguration): Promise<void> {
+    if (resetInProgress || !activeContext) {
+        return;
+    }
+    try {
+        const acquired = await acquireToken(false, configuration, activeLoginHint);
+        if (!acquired) {
+            showReconnect();
+            return;
+        }
+        activeToken = acquired.accessToken;
+        activeExpiresOn = acquired.expiresOn;
+        activeConnection?.end();
+        activeConnection = null;
+        resetWebChatHost();
+        renderConversation(
+            acquired.accessToken,
+            resolveContext(activeContext, configuration),
+            configuration,
+            activeStore ?? undefined
+        );
+        scheduleTokenRefresh(configuration);
+    } catch {
+        showReconnect();
+    }
+}
+
+function showReconnect(): void {
+    const reconnect = document.getElementById("reconnect");
+    if (reconnect) {
+        reconnect.hidden = false;
+    }
+}
+
+// User-initiated recovery when a silent refresh could not complete (e.g. a
+// Conditional Access re-auth is genuinely required). The login hint keeps this
+// to a single click — usually zero prompts thanks to the existing Entra session.
+async function reconnectConversation(): Promise<void> {
+    if (resetInProgress || !activeContext || !activeConfiguration) {
+        return;
+    }
+    const configuration = activeConfiguration;
+    const button = document.getElementById("reconnect-button") as HTMLButtonElement | null;
+    if (button) {
+        button.disabled = true;
+        button.textContent = "Reconnecting…";
+    }
+    try {
+        const acquired = await acquireToken(true, configuration, activeLoginHint);
+        if (!acquired) {
+            return;
+        }
+        activeToken = acquired.accessToken;
+        activeExpiresOn = acquired.expiresOn;
+        const reconnect = document.getElementById("reconnect");
+        if (reconnect) {
+            reconnect.hidden = true;
+        }
+        activeConnection?.end();
+        activeConnection = null;
+        resetWebChatHost();
+        renderConversation(
+            acquired.accessToken,
+            resolveContext(activeContext, configuration),
+            configuration,
+            activeStore ?? undefined
+        );
+        scheduleTokenRefresh(configuration);
+    } catch (error) {
+        showError(error);
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = "Reconnect";
+        }
+    }
 }
 
 async function startNewConversation(): Promise<void> {
@@ -732,14 +960,18 @@ async function start(interactive: boolean): Promise<void> {
     setStatus(interactive ? "Signing you in…" : "Starting a secure conversation…");
 
     try {
-        const { configuration, context } = await parseLaunchRequest();
+        const { configuration, context, loginHint } = await parseLaunchRequest();
         applyPaneTitle(configuration.paneTitle);
-        const token = await acquireToken(interactive, configuration);
-        if (!token) {
+        activeLoginHint = loginHint ?? readSharedLoginHint(configuration);
+        const acquired = await acquireToken(interactive, configuration, activeLoginHint);
+        if (!acquired) {
             showSignIn();
             return;
         }
-        renderConversation(token, context, configuration);
+        activeToken = acquired.accessToken;
+        activeExpiresOn = acquired.expiresOn;
+        renderConversation(acquired.accessToken, context, configuration);
+        scheduleTokenRefresh(configuration);
     } catch (error) {
         // Never expose token, account, response, or HR context details in the UI or browser logs.
         showError(error);
@@ -754,6 +986,9 @@ function initialize(): void {
     });
     getRequiredElement<HTMLButtonElement>("new-conversation").addEventListener("click", () => {
         void startNewConversation();
+    });
+    document.getElementById("reconnect-button")?.addEventListener("click", () => {
+        void reconnectConversation();
     });
     void start(false);
 }

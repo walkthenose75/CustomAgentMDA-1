@@ -34,6 +34,8 @@
 
         #status[hidden],
         #chat[hidden],
+        #reconnect[hidden],
+        #prompts[hidden],
         #sign-in[hidden] {
             display: none;
         }
@@ -42,7 +44,7 @@
             width: 100%;
             height: 100%;
             display: grid;
-            grid-template-rows: auto minmax(0, 1fr);
+            grid-template-rows: auto auto auto minmax(0, 1fr);
         }
 
         .chat-toolbar {
@@ -87,6 +89,84 @@
         #webchat {
             min-width: 0;
             min-height: 0;
+        }
+
+        #prompts {
+            box-sizing: border-box;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 8px 10px;
+            border-bottom: 1px solid #e0e0e0;
+            background: #fafafa;
+        }
+
+        .prompt-chip {
+            max-width: 100%;
+            padding: 5px 12px;
+            border: 1px solid #d1d1d1;
+            border-radius: 14px;
+            color: #0f6cbd;
+            background: #ffffff;
+            font: inherit;
+            font-size: 12.5px;
+            font-weight: 600;
+            line-height: 1.2;
+            text-align: left;
+            white-space: normal;
+            cursor: pointer;
+        }
+
+        .prompt-chip:hover {
+            border-color: #0f6cbd;
+            background: #eff6fc;
+        }
+
+        .prompt-chip:focus-visible {
+            outline: 2px solid #0f6cbd;
+            outline-offset: 2px;
+        }
+
+        #reconnect {
+            box-sizing: border-box;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1px solid #f3d9a4;
+            background: #fff4ce;
+            color: #6a4b16;
+            font-size: 13px;
+        }
+
+        #reconnect-button {
+            min-height: 28px;
+            padding: 4px 12px;
+            border: 1px solid #0f6cbd;
+            border-radius: 4px;
+            color: #ffffff;
+            background: #0f6cbd;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        #reconnect-button:hover {
+            background: #115ea3;
+        }
+
+        #reconnect-button:disabled {
+            background: #a0a0a0;
+            border-color: #a0a0a0;
+            cursor: wait;
+        }
+
+        #reconnect-button:focus-visible {
+            outline: 2px solid #242424;
+            outline-offset: 2px;
         }
 
         .status-card {
@@ -164,6 +244,11 @@
                 title="Clear this chat and start a new conversation"
             >New conversation</button>
         </div>
+        <div id="reconnect" role="alert" hidden>
+            <span>Your secure session expired. Reconnect to continue — your conversation is kept.</span>
+            <button id="reconnect-button" type="button">Reconnect</button>
+        </div>
+        <div id="prompts" role="group" aria-label="Suggested prompts for this form" hidden></div>
         <div id="webchat"></div>
     </div>
 

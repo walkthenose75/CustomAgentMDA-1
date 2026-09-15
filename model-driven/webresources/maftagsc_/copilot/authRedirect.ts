@@ -22,6 +22,7 @@ interface AuthRequest {
     redirectUri: string;
     scope: string;
     nonce: string;
+    loginHint?: string;
 }
 
 function setMessage(text: string): void {
@@ -103,7 +104,8 @@ async function run(): Promise<void> {
         try {
             await client.acquireTokenRedirect({
                 scopes: [request.scope],
-                prompt: "select_account"
+                loginHint: request.loginHint,
+                prompt: request.loginHint ? undefined : "select_account"
             });
         } catch (error) {
             writeResult(nonce, `error:${describeError(error)}`);

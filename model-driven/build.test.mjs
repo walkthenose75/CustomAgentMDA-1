@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { transform } from "esbuild";
 
 const sourceRoot = new URL("./webresources/maftagsc_/copilot/", import.meta.url);
 const solutionRoot = new URL("../solution/WebResources/maftagsc_/copilot/", import.meta.url);
@@ -157,4 +158,109 @@ test("authentication redirect completes sign-in via a same-origin localStorage h
     assert.match(html, /maftagsc\.sidecar\.authResult/);
     assert.doesNotMatch(html, /broadcastResponseToMainFrame/);
     assert.doesNotMatch(html, /HR_AGENT_AUTH_REDIRECT_BUNDLE/);
+});
+
+test("token refresh delay is skewed ahead of expiry and clamped to a minimum", async () => {
+    // tokenRefresh.ts is import-free pure math, so transform-and-import it and
+    // exercise the timing directly rather than asserting on the bundled string.
+    const src = await read(sourceRoot, "tokenRefresh.ts");
+    const js = (await transform(src, { loader: "ts", format: "esm" })).code;
+    const mod = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+    const { computeRefreshDelayMs, TOKEN_REFRESH_SKEW_MS, MIN_TOKEN_REFRESH_DELAY_MS } = mod;
+
+    const now = 1_000_000;
+    assert.equal(
+        computeRefreshDelayMs(new Date(now + 60 * 60 * 1000), now),
+        60 * 60 * 1000 - TOKEN_REFRESH_SKEW_MS
+    );
+    // Near-expiry and already-expired tokens clamp to the minimum (never negative).
+    assert.equal(computeRefreshDelayMs(new Date(now + 1000), now), MIN_TOKEN_REFRESH_DELAY_MS);
+    assert.equal(computeRefreshDelayMs(new Date(now - 10_000), now), MIN_TOKEN_REFRESH_DELAY_MS);
+    // Unknown lifetime cannot be proactively scheduled.
+    assert.equal(computeRefreshDelayMs(null, now), null);
+    assert.equal(computeRefreshDelayMs(new Date(Number.NaN), now), null);
+});
+
+test("side pane silently refreshes the delegated token and offers a reconnect", async () => {
+    const source = await read(sourceRoot, "agentSidePane.ts");
+
+    // Token lifetime is captured and drives a proactive silent-refresh loop.
+    assert.match(source, /computeRefreshDelayMs/);
+    assert.match(source, /scheduleTokenRefresh\(configuration\)/);
+    assert.match(source, /async function refreshActiveToken/);
+    assert.match(source, /expiresOn: result\.expiresOn/);
+    // A fresh token is swapped in while the transcript (store) is preserved.
+    assert.match(source, /activeStore \?\? undefined/);
+    // Silent SSO uses the Dynamics login hint before ever prompting.
+    assert.match(source, /client\.ssoSilent/);
+    assert.match(source, /async function reconnectConversation/);
+
+    // The login hint (Dynamics UPN) is plumbed end to end.
+    const launcherSource = await read(sourceRoot, "agentSidePaneLauncher.ts");
+    assert.match(launcherSource, /userSettings\?\.userName/);
+    assert.match(launcherSource, /upn: getUpn\(\)/);
+    const redirectSource = await read(sourceRoot, "authRedirect.ts");
+    assert.match(redirectSource, /loginHint: request\.loginHint/);
+
+    // Built artifacts carry the reconnect affordance and the silent-SSO call.
+    const html = await read(sourceRoot, "agentSidePane.html");
+    assert.match(html, /Reconnect/);
+    assert.match(html, /ssoSilent/);
+    const launcher = await read(sourceRoot, "agentSidePane.js");
+    assert.match(launcher, /userName/);
+});
+
+test("form prompts are role-filtered and entity-scoped", async () => {
+    const src = await read(sourceRoot, "sidecarConfiguration.ts");
+    const js = (await transform(src, { loader: "ts", format: "esm" })).code;
+    const mod = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+    const { getBindingPrompts } = mod;
+
+    const configuration = {
+        entityBindings: {
+            maftagsc_timeoffrequest: {
+                logicalName: "maftagsc_timeoffrequest",
+                screenName: "Time Off Request record form",
+                prompts: [
+                    { label: "Everyone", text: "shown to all" },
+                    { label: "Managers", text: "manager only", roles: ["Manager"] }
+                ]
+            }
+        }
+    };
+
+    // No roles: only the unrestricted prompt is returned.
+    const forEmployee = getBindingPrompts(configuration, "maftagsc_timeoffrequest", []);
+    assert.equal(forEmployee.length, 1);
+    assert.equal(forEmployee[0].label, "Everyone");
+
+    // Role match is case-insensitive, and the entity name is normalized too.
+    const forManager = getBindingPrompts(configuration, "MAFTAGSC_TimeOffRequest", ["manager"]);
+    assert.equal(forManager.length, 2);
+
+    // Unbound entities yield no prompts.
+    assert.equal(getBindingPrompts(configuration, "account", ["Manager"]).length, 0);
+});
+
+test("side pane renders role-aware suggested prompt chips per form", async () => {
+    const paneSource = await read(sourceRoot, "agentSidePane.ts");
+    const configSource = await read(sourceRoot, "sidecarConfiguration.ts");
+
+    // Runtime resolves prompts for the current form and renders/refreshes chips.
+    assert.match(paneSource, /getBindingPrompts/);
+    assert.match(paneSource, /function renderPrompts/);
+    assert.match(paneSource, /renderPrompts\(configuration\)/);
+    assert.match(paneSource, /prompt-chip/);
+    // Clicking a chip sends its text through the normal message pipeline.
+    assert.match(paneSource, /"WEB_CHAT\/SEND_MESSAGE", payload: \{ text, method: "keyboard" \}/);
+
+    // Config layer validates and role-filters the catalog.
+    assert.match(configSource, /export interface SidecarPrompt/);
+    assert.match(configSource, /function isValidPrompts/);
+    assert.match(configSource, /export function getBindingPrompts/);
+
+    // Seeded HR prompts reach the built artifacts.
+    const html = await read(sourceRoot, "agentSidePane.html");
+    assert.match(html, /prompt-chip/);
+    assert.match(html, /Submit for approval/);
 });
