@@ -28,6 +28,20 @@ administration Code App**. The dynamic-prompt catalog is bundled inside `agentSi
 | Node 18+ and this repo on branch `feature/auth-refresh-and-dynamic-prompts` | Rebuild artifacts locally | `node --version`, `git branch --show-current` |
 | GitHub account with a fork (optional, for the PR) | Push + open PR upstream | — |
 
+> **Environment topology observed in this workspace (2026-09-14).** A read-only scan of the
+> signed-in `pac auth` profiles found a state you must reconcile **before** deploying:
+> - The app's configured environment (`power.config.json` → `f9b87f8b-0abf-e629-affb-b13195d1ed14`,
+>   "Agent Sidecar") is **not reachable** under any authenticated `pac` profile.
+> - The only reachable environment that already hosts a sidecar solution is **Contoso - Dev**
+>   (`https://org8599b1c0.crm.dynamics.com/`), which contains **`AgentSidecarCore`** (unmanaged).
+>   Its environment id (`f93f07d8-…`) does **not** match `power.config.json`.
+> - This repo's packaged solution under `solution/` is **`HRAgentSidecar`** (the HR reference app) —
+>   **not** `AgentSidecarCore`. Do **not** blindly re-import the whole repo solution into that env.
+> - Publisher: unique name `agentsidecar`, customization prefix `maftagsc`.
+>
+> **Action:** confirm the intended target environment and `pac auth create --environment <URL>` to it
+> if it is not already a profile, then deploy **only the two changed web resources** via a route below.
+
 ---
 
 ## 1. Pre-flight — prove the build is green locally
@@ -102,7 +116,25 @@ pac auth create --environment <ENVIRONMENT_URL>     # e.g. https://org.crm.dynam
 pac org who                                          # confirm you're on the right org
 ```
 
-### Route 1 — update the two web resources directly (surgical)
+> **CLI note (verified in this workspace, 2026-09-14).** `pac webresource …` is **not a command** in
+> the installed CLI version — `pac` exposes `solution`, `package`, `pcf`, `tool`, … but **no
+> `webresource` noun**. The `pac webresource update` commands in "Route 1" below **will not run** here.
+> Use **Route 1a (maker portal)** — the simplest, lowest-risk path — or **Route 2 (solution import)**.
+
+### Route 1a — maker portal (recommended; no CLI, no packaging)
+
+1. Sign in to https://make.powerapps.com and select the **target environment** (see the topology note
+   in §0 — confirm the right one first).
+2. **Solutions** → open the solution that owns the pane web resources (e.g. `AgentSidecarCore`).
+3. Open web resource **`maftagsc_/copilot/agentSidePane.html`** → **Upload file** →
+   `solution\WebResources\maftagsc_\copilot\agentSidePane.html` → **Save**.
+4. Repeat for **`maftagsc_/copilot/agentSidePane.js`**.
+5. **Publish all customizations.**
+
+Two files, ~2 minutes, no packaging risk. This is the recommended route because the installed CLI has
+no `webresource` command.
+
+### Route 1 — update the two web resources directly (surgical) — *only if your `pac` has the command*
 
 ```powershell
 # Update the pane shell + launcher in place, then publish.
@@ -119,6 +151,13 @@ pac solution publish            # publish all customizations so users get the ne
 > `--solution-name AgentSidecarCore` (or the solution that owns these web resources in your env).
 
 ### Route 2 — re-import the solution (when you prefer solution ALM)
+
+> **Caution (see §0 topology).** The unpacked solution under `solution/` is **`HRAgentSidecar`**. If
+> your target environment runs a **different** solution (e.g. `AgentSidecarCore` in Contoso - Dev),
+> do **not** pack and import `solution/` wholesale — you would import the wrong solution. Either use
+> **Route 1a** (upload the two web resources into the solution the env actually uses), or build a
+> minimal **patch solution** (publisher `agentsidecar` / prefix `maftagsc`) that contains *only*
+> `maftagsc_/copilot/agentSidePane.html` and `.js`, then `pac solution import --publish-changes`.
 
 1. Repack the solution that contains the web resources (the unpacked source is under `solution/`):
    ```powershell
