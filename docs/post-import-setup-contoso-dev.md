@@ -129,19 +129,22 @@ The pane only opens on tables listed in `entityBindings`; other forms are silent
 
 ---
 
-## 5. About prompts (answer: they're not in the Code App wizard)
+## 5. About prompts (two ways: author in-app, or edit the bundled catalog)
 
-The dynamic, role‑aware suggested‑prompt **chips are driven entirely at runtime** by the bundled
-catalog **`model-driven/webresources/maftagsc_/copilot/promptCatalog.ts`** — the single source of
-truth. They are **not** authored in the Code App wizard (the admin app authors app/table bindings,
-not prompts) and require **no Dataverse schema change**. At runtime `applyPromptCatalog()` merges the
-catalog over both the Dataverse‑backed config and the bootstrap fallback, filters by the signed‑in
-user's security roles, and renders up to 6 chips for the current form.
+Suggested‑prompt **chips** appear above the chat box, filtered by the signed‑in user's security roles
+(up to 6 per form). There are two sources, and **admin‑authored prompts win**:
 
-**To change prompts today:** edit `promptCatalog.ts`, run `node model-driven/build.mjs`, and redeploy
-the `agentSidePane.html` web resource. A future enhancement (documented in the design doc §3.4) would
-add a `maftagsc_prompts` column to `maftagsc_targetbinding` and a wizard editor — but that's a schema
-change and isn't needed for prompts to work.
+1. **In‑app authoring (Option C, recommended).** On a sidecar's **detail page** in the Agent Sidecar
+   Administration app, the **Suggested prompts** editor lets admins add per‑table prompts (label,
+   text, optional comma‑separated roles) and Save — no code, no redeploy. These persist to
+   `maftagsc_sidecarconfiguration.maftagsc_prompts` (a JSON column that ships with the solution) and
+   are applied onto the matching form bindings at runtime.
+2. **Bundled catalog (default / backfill).** `model-driven/webresources/maftagsc_/copilot/promptCatalog.ts`
+   supplies defaults for any table an admin hasn't customized. To change these, edit the file, run
+   `node model-driven/build.mjs`, and redeploy the `agentSidePane.html` web resource.
+
+At runtime the repository reads authored prompts (falling back gracefully if the column is absent) and
+`applyPromptCatalog()` backfills the rest, so chips always render.
 
 ---
 

@@ -185,20 +185,31 @@ though Dataverse carries no prompt data. Binding-authored prompts (a future admi
 take precedence; the catalog only fills the gap. This is the single source of truth — the bootstrap
 no longer inlines prompts.
 
-### 3.4 Admin authoring (Code App) — future enhancement
+### 3.4 Admin authoring (Code App) — shipped (Option C)
 
-The bundled catalog makes prompts fully functional today. A later enhancement can let admins author
-prompts in the wizard and persist them **on the binding** (which then wins over the catalog). That
-requires a `maftagsc_prompts` multiline-text column on `maftagsc_targetbinding` (a schema change that
-regenerates `src/generated/**` against the target environment), plus:
+Administrators author role-aware prompts **inside the Agent Sidecar Administration app** — no code
+edits, no redeploy. The editor lives on the sidecar **detail page** (`SidecarDetailPage` →
+`SidecarDetails` → `SidecarPromptsEditor`): for each bound table, add up to `MAX_PROMPTS_PER_TABLE`
+(6) prompts, each with a chip label, prompt text, and optional comma-separated security roles
+(blank = everyone). Saving persists the whole catalog and re-validates health.
 
-- Extend the wizard's **Tables & forms** step (`SidecarWizard.tsx`) to author prompts per form.
-- Add `prompts` to `TargetForm` / `TargetTable` in `src/types/sidecar-admin-models.ts`.
-- Update the mock and real providers to read/write `maftagsc_prompts` as JSON.
-- Extend the runtime repository `$select` to read `maftagsc_prompts` and map it onto the binding.
-- Any new editable Dataverse-bound field uses `DataverseFieldLabel` (Code App guardrail).
+Persistence is a single JSON column **`maftagsc_prompts` on `maftagsc_sidecarconfiguration`**, keyed
+by table logical name — *not* a per-binding column. This keeps one write target that both the admin
+`map()` and the runtime repository already read, and avoids regenerating `src/generated/**`.
 
-Until that column exists in the target environment, the bundled catalog is the supported path.
+- `src/lib/sidecar-prompts.ts` — the single serialize/validate boundary (caps, length limits,
+  logical-name validation, role de-dup) shared by the real and mock providers.
+- `src/components/SidecarPromptsEditor/` — Fluent v9 editor; dirty-tracking; refetch-safe draft
+  reconciliation; labels the field via `DataverseFieldLabel`.
+- Providers / hook / contract: `savePrompts(id, promptsByTable)` plus prompt read-through on `map()`.
+- Runtime `sidecarConfigurationRepository.ts` — selects `maftagsc_prompts` as an **optional** column
+  (retries without it if the environment predates the feature) and applies authored prompts onto
+  matching bindings, where they win over the bundled catalog.
+
+**Precedence:** admin-authored (Dataverse) prompts > bundled `promptCatalog.ts`, which still backfills
+tables the admin has not customized. The `maftagsc_prompts` column ships in the solution
+(`solution/Entities/maftagsc_sidecarconfiguration/Entity.xml`), so it travels with a solution import;
+if it is ever absent the pane degrades to the bundled catalog instead of failing.
 
 ### 3.5 Files touched (Phase 3)
 
@@ -218,7 +229,9 @@ Tests: `model-driven/build.test.mjs` — config validation, chip render + role f
 - **Code App rules** — `src/generated/**` is read-only; three-layer architecture; HashRouter only;
   Fluent UI v9 only; every new editable Dataverse-bound field uses `DataverseFieldLabel`; dev port
   3000; `base: './'` for build.
-- **No Dataverse schema change for v1** — prompt catalog persists as JSON in existing config.
+- **Minimal, additive schema** — the bundled catalog needs no schema change; the Option C authoring
+  UI adds exactly one additive column (`maftagsc_sidecarconfiguration.maftagsc_prompts`, tracked in
+  the solution). No tables added, nothing destructive, and the runtime tolerates its absence.
 
 ---
 
@@ -229,7 +242,7 @@ Tests: `model-driven/build.test.mjs` — config validation, chip render + role f
 | 0 | Git: fork on GitHub, add fork remote, feature branch `feature/auth-refresh-and-dynamic-prompts` off `main`; PR upstream at the end | **Done** — fork `walkthenose75/CustomAgentMDA-1`, branch pushed, **PR #3** open upstream |
 | 1 | HTML slide deck (Fluent/Microsoft themed) — exec summary + technical detail + roadmap | **Done** |
 | 2 | Auth continuity code (Section 2.7) | **Done** — validated: model-driven build + typecheck + 9 tests, main typecheck, lint, 41 vitest |
-| 3 | Dynamic prompts Option A (Section 3.5) | Runtime **done** — config model, role filter, chip bar, bundled `promptCatalog.ts` merged over **both** the Dataverse and bootstrap configs, tests. Works in real deployments with no schema change. Admin authoring UI is a future enhancement (needs a binding column). |
+| 3 | Dynamic prompts Option A (Section 3.5) | Runtime **done** — config model, role filter, chip bar, bundled `promptCatalog.ts` merged over **both** the Dataverse and bootstrap configs, tests. In-app admin authoring UI (Option C) **shipped** — `SidecarPromptsEditor` persists to `maftagsc_sidecarconfiguration.maftagsc_prompts` (one additive, in-solution column); runtime degrades to the bundled catalog if the column is absent. |
 | 4 | ADR 0007 documenting Option A choice + Option B alternative | This doc + ADR |
 | 5 | Green baseline, push to fork, open PR upstream | **Done** — baseline green; pushed; PR https://github.com/martycarreras-psnl/CustomAgentMDA/pull/3 |
 
