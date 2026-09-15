@@ -9,6 +9,27 @@ import {
 
 const AUTHORED_PROMPT_LOGICAL_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
 
+// Base projection for the sidecar configuration record, excluding the optional
+// admin-authored prompt catalog. maftagsc_prompts is selected separately so the
+// pane can degrade gracefully in environments provisioned before the in-app
+// prompt authoring feature shipped (where that column does not yet exist).
+const CONFIGURATION_SELECT =
+    "maftagsc_sidecarconfigurationid,maftagsc_appid,maftagsc_panetitle,maftagsc_panewidth," +
+    "maftagsc_publicclientapplicationid,maftagsc_tenantid,maftagsc_environmentid," +
+    "maftagsc_agentschemaname,maftagsc_agentconnectionstring,statecode,statuscode";
+const OPTIONAL_PROMPTS_COLUMN = "maftagsc_prompts";
+
+// Selecting a column that does not exist yields a specific property-not-found
+// error. Detect it by column name so a missing optional column triggers a retry
+// without it, while genuine failures still propagate.
+function isMissingColumnError(error: unknown, column: string): boolean {
+    const message =
+        error && typeof error === "object" && "message" in error
+            ? String((error as { message?: unknown }).message ?? "")
+            : String(error ?? "");
+    return message.toLowerCase().includes(column.toLowerCase());
+}
+
 // Parse the admin-authored prompt catalog stored as JSON on
 // maftagsc_sidecarconfiguration.maftagsc_prompts, keyed by table logical name.
 // Invalid or partial entries are dropped so a bad edit can never break pane
@@ -83,11 +104,25 @@ implements SidecarConfigurationRepository {
         }
 
         const escapedAppId = normalizedAppId.replace(/'/g, "''");
-        const configurationResult = await this.getWebApi().retrieveMultipleRecords(
-            "maftagsc_sidecarconfiguration",
-            `?$select=maftagsc_sidecarconfigurationid,maftagsc_appid,maftagsc_panetitle,maftagsc_panewidth,maftagsc_publicclientapplicationid,maftagsc_tenantid,maftagsc_environmentid,maftagsc_agentschemaname,maftagsc_agentconnectionstring,maftagsc_prompts,statecode,statuscode&$filter=maftagsc_appid eq '${escapedAppId}' and statecode eq 0`,
-            2
-        );
+        const configurationFilter = `&$filter=maftagsc_appid eq '${escapedAppId}' and statecode eq 0`;
+        const webApi = this.getWebApi();
+        let configurationResult;
+        try {
+            configurationResult = await webApi.retrieveMultipleRecords(
+                "maftagsc_sidecarconfiguration",
+                `?$select=${CONFIGURATION_SELECT},${OPTIONAL_PROMPTS_COLUMN}${configurationFilter}`,
+                2
+            );
+        } catch (error) {
+            if (!isMissingColumnError(error, OPTIONAL_PROMPTS_COLUMN)) {
+                throw error;
+            }
+            configurationResult = await webApi.retrieveMultipleRecords(
+                "maftagsc_sidecarconfiguration",
+                `?$select=${CONFIGURATION_SELECT}${configurationFilter}`,
+                2
+            );
+        }
         if (configurationResult.entities.length !== 1) {
             return resolveSidecarConfiguration([], appId);
         }
