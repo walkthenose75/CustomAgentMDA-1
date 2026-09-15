@@ -6,6 +6,7 @@ import type {
   RuntimeEnvironmentContext,
   SidecarConfiguration,
   SidecarDraft,
+  SidecarPromptDefinition,
   SidecarProgressCallback,
   TargetModelDrivenApp,
 } from '@/types/sidecar-admin-models';
@@ -22,6 +23,7 @@ export interface SidecarAdministrationProvider {
   previewDeployment(draft: SidecarDraft): Promise<DeploymentImpact[]>;
   deploy(draft: SidecarDraft, onProgress?: SidecarProgressCallback): Promise<SidecarConfiguration>;
   validate(id: string): Promise<SidecarConfiguration>;
+  savePrompts(id: string, promptsByTable: Record<string, SidecarPromptDefinition[]>): Promise<SidecarConfiguration>;
   reconcile(id: string, onProgress?: SidecarProgressCallback): Promise<SidecarConfiguration>;
   setEnabled(id: string, enabled: boolean, onProgress?: SidecarProgressCallback): Promise<SidecarConfiguration>;
   uninstall(id: string, onProgress?: SidecarProgressCallback): Promise<void>;

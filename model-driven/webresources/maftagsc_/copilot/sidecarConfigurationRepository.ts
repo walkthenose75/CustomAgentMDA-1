@@ -3,8 +3,49 @@ import {
     resolveSidecarConfiguration,
     SidecarConfigurationError,
     type SidecarConfiguration,
-    type SidecarEntityBinding
+    type SidecarEntityBinding,
+    type SidecarPrompt
 } from "./sidecarConfiguration";
+
+const AUTHORED_PROMPT_LOGICAL_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
+
+// Parse the admin-authored prompt catalog stored as JSON on
+// maftagsc_sidecarconfiguration.maftagsc_prompts, keyed by table logical name.
+// Invalid or partial entries are dropped so a bad edit can never break pane
+// rendering; applyPromptCatalog still backfills bundled defaults for tables the
+// administrator has not customized.
+function parseAuthoredPrompts(raw: unknown): Record<string, SidecarPrompt[]> {
+    if (typeof raw !== "string" || !raw.trim()) return {};
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        return {};
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const catalog: Record<string, SidecarPrompt[]> = {};
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+        const logicalName = key.trim().toLowerCase();
+        if (!AUTHORED_PROMPT_LOGICAL_NAME_PATTERN.test(logicalName) || !Array.isArray(value)) continue;
+        const prompts: SidecarPrompt[] = [];
+        for (const item of value) {
+            if (!item || typeof item !== "object") continue;
+            const candidate = item as { label?: unknown; text?: unknown; roles?: unknown };
+            const label = typeof candidate.label === "string" ? candidate.label.trim() : "";
+            const text = typeof candidate.text === "string" ? candidate.text.trim() : "";
+            if (!label || !text) continue;
+            const roles = Array.isArray(candidate.roles)
+                ? candidate.roles
+                    .filter((role): role is string => typeof role === "string")
+                    .map((role) => role.trim())
+                    .filter((role) => role.length > 0)
+                : undefined;
+            prompts.push(roles && roles.length ? { label, text, roles } : { label, text });
+        }
+        if (prompts.length) catalog[logicalName] = prompts;
+    }
+    return catalog;
+}
 
 export interface SidecarConfigurationRepository {
     getByAppId(appId: unknown): Promise<SidecarConfiguration>;
@@ -44,7 +85,7 @@ implements SidecarConfigurationRepository {
         const escapedAppId = normalizedAppId.replace(/'/g, "''");
         const configurationResult = await this.getWebApi().retrieveMultipleRecords(
             "maftagsc_sidecarconfiguration",
-            `?$select=maftagsc_sidecarconfigurationid,maftagsc_appid,maftagsc_panetitle,maftagsc_panewidth,maftagsc_publicclientapplicationid,maftagsc_tenantid,maftagsc_environmentid,maftagsc_agentschemaname,maftagsc_agentconnectionstring,statecode,statuscode&$filter=maftagsc_appid eq '${escapedAppId}' and statecode eq 0`,
+            `?$select=maftagsc_sidecarconfigurationid,maftagsc_appid,maftagsc_panetitle,maftagsc_panewidth,maftagsc_publicclientapplicationid,maftagsc_tenantid,maftagsc_environmentid,maftagsc_agentschemaname,maftagsc_agentconnectionstring,maftagsc_prompts,statecode,statuscode&$filter=maftagsc_appid eq '${escapedAppId}' and statecode eq 0`,
             2
         );
         if (configurationResult.entities.length !== 1) {
@@ -69,6 +110,13 @@ implements SidecarConfigurationRepository {
                 logicalName,
                 screenName: `${String(binding.maftagsc_tabledisplayname ?? logicalName)} record form`
             };
+        }
+
+        const authoredPrompts = parseAuthoredPrompts(record.maftagsc_prompts);
+        for (const [logicalName, prompts] of Object.entries(authoredPrompts)) {
+            if (entityBindings[logicalName]) {
+                entityBindings[logicalName] = { ...entityBindings[logicalName], prompts };
+            }
         }
 
         return resolveSidecarConfiguration([{

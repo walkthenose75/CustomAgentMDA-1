@@ -9,12 +9,19 @@ export interface TargetForm {
   enabled: boolean;
 }
 
+export interface SidecarPromptDefinition {
+  label: string;
+  text: string;
+  roles?: string[];
+}
+
 export interface TargetTable {
   logicalName: string;
   displayName: string;
   enabled: boolean;
   formCount: number;
   forms: TargetForm[];
+  prompts?: SidecarPromptDefinition[];
 }
 
 export interface TargetModelDrivenApp {

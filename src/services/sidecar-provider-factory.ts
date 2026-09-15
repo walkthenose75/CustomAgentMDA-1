@@ -21,6 +21,7 @@ export function createSidecarAdministrationProvider(): SidecarAdministrationProv
     previewDeployment: (draft) => provider.then((value) => value.previewDeployment(draft)),
     deploy: (draft, onProgress) => provider.then((value) => value.deploy(draft, onProgress)),
     validate: (id) => provider.then((value) => value.validate(id)),
+    savePrompts: (id, promptsByTable) => provider.then((value) => value.savePrompts(id, promptsByTable)),
     reconcile: (id, onProgress) => provider.then((value) => value.reconcile(id, onProgress)),
     setEnabled: (id, enabled, onProgress) => provider.then((value) => value.setEnabled(id, enabled, onProgress)),
     uninstall: (id, onProgress) => provider.then((value) => value.uninstall(id, onProgress)),
