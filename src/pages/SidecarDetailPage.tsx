@@ -3,6 +3,7 @@ import { SidecarDetails } from '@/components/SidecarDetails/SidecarDetails';
 import { useOperationReport } from '@/hooks/useOperationReport';
 import {
   useReconcileSidecar,
+  useSavePrompts,
   useSetSidecarEnabled,
   useSidecarConfiguration,
   useUninstallSidecar,
@@ -17,10 +18,11 @@ export function SidecarDetailPage() {
   const reconcile = useReconcileSidecar();
   const setEnabled = useSetSidecarEnabled();
   const uninstall = useUninstallSidecar();
+  const savePrompts = useSavePrompts();
   const report = useOperationReport();
-  const error = [configuration.error, validate.error, reconcile.error, setEnabled.error, uninstall.error]
+  const error = [configuration.error, validate.error, reconcile.error, setEnabled.error, uninstall.error, savePrompts.error]
     .find((item): item is Error => item instanceof Error);
-  const busy = validate.isPending || reconcile.isPending || setEnabled.isPending || uninstall.isPending;
+  const busy = validate.isPending || reconcile.isPending || setEnabled.isPending || uninstall.isPending || savePrompts.isPending;
 
   return (
     <SidecarDetails
@@ -49,6 +51,7 @@ export function SidecarDetailPage() {
         try { await uninstall.mutateAsync({ id, onProgress: report.onProgress }); report.recordSuccess('Uninstall completed.'); navigate('/'); }
         catch (caught) { report.recordError(caught instanceof Error ? caught.message : 'Uninstall failed.'); }
       }}
+      onSavePrompts={async (promptsByTable) => { if (id) await savePrompts.mutateAsync({ id, promptsByTable }); }}
     />
   );
 }

@@ -1,6 +1,13 @@
+export interface SidecarPrompt {
+    label: string;
+    text: string;
+    roles?: readonly string[];
+}
+
 export interface SidecarEntityBinding {
     logicalName: string;
     screenName: string;
+    prompts?: readonly SidecarPrompt[];
 }
 
 export interface SidecarConfiguration {
@@ -123,6 +130,26 @@ export function resolveSidecarConfiguration(
     return matches[0];
 }
 
+function isValidPrompts(prompts: unknown): boolean {
+    if (prompts === undefined) {
+        return true;
+    }
+    if (!Array.isArray(prompts)) {
+        return false;
+    }
+    return prompts.every((prompt) => {
+        if (!prompt || typeof prompt !== "object") {
+            return false;
+        }
+        const candidate = prompt as SidecarPrompt;
+        const labelOk = typeof candidate.label === "string" && candidate.label.trim().length > 0;
+        const textOk = typeof candidate.text === "string" && candidate.text.trim().length > 0;
+        const rolesOk = candidate.roles === undefined ||
+            (Array.isArray(candidate.roles) && candidate.roles.every((role) => typeof role === "string"));
+        return labelOk && textOk && rolesOk;
+    });
+}
+
 export function assertSidecarConfiguration(configuration: SidecarConfiguration): void {
     const identifiers = [
         configuration.appId,
@@ -159,7 +186,8 @@ export function assertSidecarConfiguration(configuration: SidecarConfiguration):
         bindingEntries.some(([key, binding]) =>
             !LOGICAL_NAME_PATTERN.test(key) ||
             binding.logicalName !== key ||
-            !binding.screenName.trim()
+            !binding.screenName.trim() ||
+            !isValidPrompts(binding.prompts)
         )
     ) {
         throw new SidecarConfigurationError("sidecar_configuration_invalid");
@@ -174,4 +202,28 @@ export function getEntityBinding(
     return Object.prototype.hasOwnProperty.call(configuration.entityBindings, logicalName)
         ? configuration.entityBindings[logicalName] ?? null
         : null;
+}
+
+// Return the current form's suggested prompts filtered by the signed-in user's
+// security roles. A prompt with no roles is shown to everyone; a prompt with
+// roles is shown only when the user holds at least one of them (case-insensitive).
+// The result is capped so the chip bar stays compact.
+const MAX_VISIBLE_PROMPTS = 6;
+
+export function getBindingPrompts(
+    configuration: SidecarConfiguration,
+    entityName: unknown,
+    userRoles: readonly string[]
+): SidecarPrompt[] {
+    const prompts = getEntityBinding(configuration, entityName)?.prompts ?? [];
+    const roleSet = new Set(
+        userRoles.map((role) => role.trim().toLowerCase()).filter((role) => role.length > 0)
+    );
+    return prompts
+        .filter((prompt) =>
+            !prompt.roles ||
+            prompt.roles.length === 0 ||
+            prompt.roles.some((role) => roleSet.has(role.trim().toLowerCase()))
+        )
+        .slice(0, MAX_VISIBLE_PROMPTS);
 }

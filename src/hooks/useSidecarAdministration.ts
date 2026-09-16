@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createSidecarAdministrationProvider } from '@/services/sidecar-provider-factory';
-import type { SidecarConfiguration, SidecarDraft, SidecarProgressCallback } from '@/types/sidecar-admin-models';
+import type { SidecarConfiguration, SidecarDraft, SidecarPromptDefinition, SidecarProgressCallback } from '@/types/sidecar-admin-models';
 
 const provider = createSidecarAdministrationProvider();
 
@@ -91,6 +91,12 @@ export function useDeploySidecar() {
 
 export function useValidateSidecar() {
   return useConfigurationMutation((id: string) => provider.validate(id));
+}
+
+export function useSavePrompts() {
+  return useConfigurationMutation((input: { id: string; promptsByTable: Record<string, SidecarPromptDefinition[]> }) =>
+    provider.savePrompts(input.id, input.promptsByTable),
+  );
 }
 
 export function useReconcileSidecar() {

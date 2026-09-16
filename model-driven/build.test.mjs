@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { transform } from "esbuild";
 
 const sourceRoot = new URL("./webresources/maftagsc_/copilot/", import.meta.url);
 const solutionRoot = new URL("../solution/WebResources/maftagsc_/copilot/", import.meta.url);
@@ -157,4 +158,204 @@ test("authentication redirect completes sign-in via a same-origin localStorage h
     assert.match(html, /maftagsc\.sidecar\.authResult/);
     assert.doesNotMatch(html, /broadcastResponseToMainFrame/);
     assert.doesNotMatch(html, /HR_AGENT_AUTH_REDIRECT_BUNDLE/);
+});
+
+test("form prompts are role-filtered and entity-scoped", async () => {
+    const src = await read(sourceRoot, "sidecarConfiguration.ts");
+    const js = (await transform(src, { loader: "ts", format: "esm" })).code;
+    const mod = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+    const { getBindingPrompts } = mod;
+
+    const configuration = {
+        entityBindings: {
+            maftagsc_timeoffrequest: {
+                logicalName: "maftagsc_timeoffrequest",
+                screenName: "Time Off Request record form",
+                prompts: [
+                    { label: "Everyone", text: "shown to all" },
+                    { label: "Managers", text: "manager only", roles: ["Manager"] }
+                ]
+            }
+        }
+    };
+
+    // No roles: only the unrestricted prompt is returned.
+    const forEmployee = getBindingPrompts(configuration, "maftagsc_timeoffrequest", []);
+    assert.equal(forEmployee.length, 1);
+    assert.equal(forEmployee[0].label, "Everyone");
+
+    // Role match is case-insensitive, and the entity name is normalized too.
+    const forManager = getBindingPrompts(configuration, "MAFTAGSC_TimeOffRequest", ["manager"]);
+    assert.equal(forManager.length, 2);
+
+    // Unbound entities yield no prompts.
+    assert.equal(getBindingPrompts(configuration, "account", ["Manager"]).length, 0);
+});
+
+test("side pane renders role-aware suggested prompt chips per form", async () => {
+    const paneSource = await read(sourceRoot, "agentSidePane.ts");
+    const configSource = await read(sourceRoot, "sidecarConfiguration.ts");
+
+    // Runtime resolves prompts for the current form and renders/refreshes chips.
+    assert.match(paneSource, /getBindingPrompts/);
+    assert.match(paneSource, /function renderPrompts/);
+    assert.match(paneSource, /renderPrompts\(configuration\)/);
+    assert.match(paneSource, /prompt-chip/);
+    // Prompts are merged over BOTH the Dataverse and bootstrap configs, so chips
+    // appear in a real deployment (where the binding table carries no prompts).
+    assert.match(paneSource, /applyPromptCatalog\(await sidecarConfigurationRepository\.getByAppId/);
+    // Clicking a chip sends its text through the normal message pipeline.
+    assert.match(paneSource, /"WEB_CHAT\/SEND_MESSAGE", payload: \{ text, method: "keyboard" \}/);
+
+    // Config layer validates and role-filters the catalog.
+    assert.match(configSource, /export interface SidecarPrompt/);
+    assert.match(configSource, /function isValidPrompts/);
+    assert.match(configSource, /export function getBindingPrompts/);
+
+    // Seeded HR prompts reach the built artifacts.
+    const html = await read(sourceRoot, "agentSidePane.html");
+    assert.match(html, /prompt-chip/);
+    assert.match(html, /Submit for approval/);
+});
+
+test("prompt catalog fills bindings that carry no prompts of their own", async () => {
+    const src = await read(sourceRoot, "promptCatalog.ts");
+    const js = (await transform(src, { loader: "ts", format: "esm" })).code;
+    const mod = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+    const { applyPromptCatalog, SIDECAR_PROMPT_CATALOG } = mod;
+
+    // A Dataverse-shaped binding (no prompts column) gets catalog prompts merged in.
+    const bare = {
+        appId: "app",
+        entityBindings: {
+            maftagsc_expensereport: {
+                logicalName: "maftagsc_expensereport",
+                screenName: "Expense Report record form"
+            },
+            maftagsc_timeoffbalance: {
+                logicalName: "maftagsc_timeoffbalance",
+                screenName: "Time Off Balance record form"
+            }
+        }
+    };
+    const merged = applyPromptCatalog(bare);
+    assert.notEqual(merged, bare, "returns a new configuration when prompts are added");
+    assert.deepEqual(
+        merged.entityBindings.maftagsc_expensereport.prompts,
+        SIDECAR_PROMPT_CATALOG.maftagsc_expensereport
+    );
+    // Entities absent from the catalog stay untouched (no empty prompt arrays).
+    assert.equal(merged.entityBindings.maftagsc_timeoffbalance.prompts, undefined);
+    // Input is never mutated.
+    assert.equal(bare.entityBindings.maftagsc_expensereport.prompts, undefined);
+
+    // Binding-authored prompts always win over the catalog.
+    const authored = {
+        appId: "app",
+        entityBindings: {
+            maftagsc_expensereport: {
+                logicalName: "maftagsc_expensereport",
+                screenName: "Expense Report record form",
+                prompts: [{ label: "Custom", text: "Authored prompt" }]
+            }
+        }
+    };
+    const untouched = applyPromptCatalog(authored);
+    assert.equal(untouched, authored, "returns the same reference when nothing changes");
+    assert.equal(untouched.entityBindings.maftagsc_expensereport.prompts[0].label, "Custom");
+
+    // A role-gated catalog prompt is present for manager review.
+    const gated = SIDECAR_PROMPT_CATALOG.maftagsc_timeoffrequest.find(
+        (prompt) => Array.isArray(prompt.roles) && prompt.roles.includes("Manager")
+    );
+    assert.ok(gated, "catalog includes a Manager-gated prompt");
+});
+
+test("bootstrap no longer double-sources prompts (catalog is the single source)", async () => {
+    const bootstrap = await read(sourceRoot, "hrSidecarBootstrap.ts");
+    const catalog = await read(sourceRoot, "promptCatalog.ts");
+    assert.doesNotMatch(bootstrap, /Submit for approval/);
+    assert.match(catalog, /Submit for approval/);
+    assert.match(catalog, /export function applyPromptCatalog/);
+});
+
+test("navigation prefers the fresher in-scope form over a stale shared context", async () => {
+    // contextResolution.ts is import-free pure logic, so transform-and-import it
+    // and exercise the selection rule directly.
+    const src = await read(sourceRoot, "contextResolution.ts");
+    const js = (await transform(src, { loader: "ts", format: "esm" })).code;
+    const mod = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+    const { chooseResolvedContext, isSameForm } = mod;
+
+    const report = { pageType: "entityrecord", entityName: "contoso_incidentreport", recordId: "a" };
+    const process = { pageType: "entityrecord", entityName: "contoso_incidentprocess", recordId: "b" };
+    const fallback = { pageType: "entityrecord", entityName: "contoso_incidentreport", recordId: null };
+
+    // The bug: a stale launcher context (report) while the live host is on a
+    // different bound form (process) must yield the live form so chips change.
+    assert.deepEqual(chooseResolvedContext(report, process, fallback), process);
+
+    // Same form on both sides keeps the COOP-safe shared context.
+    assert.deepEqual(chooseResolvedContext(process, { ...process }, fallback), process);
+    // An unreadable host (null live) never discards a valid shared context.
+    assert.deepEqual(chooseResolvedContext(report, null, fallback), report);
+    // No shared context => use the live form; neither => the fallback.
+    assert.deepEqual(chooseResolvedContext(null, process, fallback), process);
+    assert.deepEqual(chooseResolvedContext(null, null, fallback), fallback);
+
+    // Form identity respects record id but ignores name/roles content.
+    assert.equal(isSameForm({ pageType: "entityrecord", entityName: "x", recordId: "1" },
+        { pageType: "entityrecord", entityName: "x", recordId: "1" }), true);
+    assert.equal(isSameForm({ pageType: "entityrecord", entityName: "x", recordId: "1" },
+        { pageType: "entityrecord", entityName: "x", recordId: "2" }), false);
+});
+
+test("pane reconciles stale shared context with the live host form", async () => {
+    const source = await read(sourceRoot, "agentSidePane.ts");
+    assert.match(source, /import \{ chooseResolvedContext \} from "\.\/contextResolution"/);
+    assert.match(
+        source,
+        /chooseResolvedContext\(\s*readSharedContext\(configuration, fallback\),\s*getCurrentContext\(fallback, configuration\),\s*fallback\s*\)/
+    );
+    // The live host read now reports "no in-scope form" as null (not the stale
+    // fallback) so the helper can tell a real context from the absence of one.
+    assert.match(
+        source,
+        /if \(!pageType \|\| !getEntityBinding\(configuration, entityName\)\) \{\s*return null;/
+    );
+});
+
+test("launcher config cache accepts only fresh, well-formed envelopes", async () => {
+    const src = await read(sourceRoot, "configCache.ts");
+    const js = (await transform(src, { loader: "ts", format: "esm" })).code;
+    const mod = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+    const { isFreshEnvelope, configCacheKey, CONFIG_CACHE_TTL_MS, CONFIG_CACHE_VERSION } = mod;
+
+    const now = 1_000_000_000;
+    assert.equal(isFreshEnvelope({ savedAt: now - 1000, configuration: { paneId: "p" } }, now), true);
+    // At the TTL boundary is still usable; one ms past is not.
+    assert.equal(isFreshEnvelope({ savedAt: now - CONFIG_CACHE_TTL_MS, configuration: {} }, now), true);
+    assert.equal(isFreshEnvelope({ savedAt: now - CONFIG_CACHE_TTL_MS - 1, configuration: {} }, now), false);
+    // Future timestamps (clock skew / tampering) and malformed shapes are rejected.
+    assert.equal(isFreshEnvelope({ savedAt: now + 5000, configuration: {} }, now), false);
+    assert.equal(isFreshEnvelope(null, now), false);
+    assert.equal(isFreshEnvelope({ configuration: {} }, now), false);
+    assert.equal(isFreshEnvelope({ savedAt: "nope", configuration: {} }, now), false);
+    assert.equal(isFreshEnvelope({ savedAt: now, configuration: null }, now), false);
+    // The key is app- and version-scoped so a format change invalidates old entries.
+    assert.equal(configCacheKey("app-1"), `maftagsc.sidecar.config.${CONFIG_CACHE_VERSION}.app-1`);
+});
+
+test("launcher caches the sidecar configuration per session to cut Dataverse reads", async () => {
+    const launcherSource = await read(sourceRoot, "agentSidePaneLauncher.ts");
+    assert.match(launcherSource, /from "\.\/configCache"/);
+    assert.match(launcherSource, /window\.sessionStorage\.getItem\(cacheKey\)/);
+    assert.match(launcherSource, /window\.sessionStorage\.setItem\(cacheKey/);
+    assert.match(launcherSource, /isFreshEnvelope\(envelope, Date\.now\(\)\)/);
+    // The Dataverse read still happens on a cache miss and its result is cached.
+    assert.match(launcherSource, /await sidecarConfigurationRepository\.getByAppId\(appProperties\.appId\)/);
+    assert.match(launcherSource, /writeCachedConfiguration\(cacheKey, configuration\)/);
+    // The built launcher carries the session cache.
+    const launcher = await read(sourceRoot, "agentSidePane.js");
+    assert.match(launcher, /sessionStorage/);
 });

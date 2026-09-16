@@ -32,7 +32,8 @@ import {
 } from '@fluentui/react-icons';
 import { HealthBadge, LifecycleBadge } from '@/components/SidecarStatusBadge/SidecarStatusBadge';
 import { OperationProgress } from '@/components/OperationProgress/OperationProgress';
-import type { SidecarConfiguration, SidecarProgress } from '@/types/sidecar-admin-models';
+import { SidecarPromptsEditor } from '@/components/SidecarPromptsEditor/SidecarPromptsEditor';
+import type { SidecarConfiguration, SidecarProgress, SidecarPromptDefinition } from '@/types/sidecar-admin-models';
 
 const useStyles = makeStyles({
   page: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXL, paddingBlock: tokens.spacingVerticalXXL },
@@ -71,9 +72,10 @@ interface SidecarDetailsProps {
   onReconcile: () => Promise<void>;
   onSetEnabled: (enabled: boolean) => Promise<void>;
   onUninstall: () => Promise<void>;
+  onSavePrompts: (promptsByTable: Record<string, SidecarPromptDefinition[]>) => Promise<void>;
 }
 
-export function SidecarDetails({ configuration, loading, busy, error, report, onBack, onValidate, onReconcile, onSetEnabled, onUninstall }: SidecarDetailsProps) {
+export function SidecarDetails({ configuration, loading, busy, error, report, onBack, onValidate, onReconcile, onSetEnabled, onUninstall, onSavePrompts }: SidecarDetailsProps) {
   const styles = useStyles();
   const [uninstallOpen, setUninstallOpen] = useState(false);
 
@@ -147,6 +149,8 @@ export function SidecarDetails({ configuration, loading, busy, error, report, on
             <MessageBar intent="info"><MessageBarBody><MessageBarTitle>Active main forms</MessageBarTitle>Selected tables use their active main forms. Newly added app tables require administrator-approved drift reconciliation before form metadata changes.</MessageBarBody></MessageBar>
             {configuration.tables.map((table) => <div className={styles.tableRow} key={table.logicalName}><div><Text weight="semibold">{table.displayName}</Text><br /><Text size={200} className={styles.muted}>{table.logicalName}</Text></div><Text>{table.formCount} main form{table.formCount === 1 ? '' : 's'}</Text></div>)}
           </Card>
+
+          <SidecarPromptsEditor tables={configuration.tables} busy={busy} onSave={onSavePrompts} />
         </div>
 
         <aside className={styles.stack}>

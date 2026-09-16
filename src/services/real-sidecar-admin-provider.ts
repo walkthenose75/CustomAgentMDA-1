@@ -14,6 +14,7 @@ import { Maftagsc_targetbindingsmaftagsc_validationstate as ValidationOptions, t
 import type { SidecarAdministrationProvider } from '@/services/sidecar-admin-contracts';
 import { addSolutionComponent, assertSidecarActionsAvailable, publishTables } from '@/services/dataverse-custom-api';
 import type { DiscoveredAgent, SidecarConfiguration, SidecarDraft, SidecarHealthCheck, SidecarHealthState, SidecarLifecycleState, SidecarProgressCallback, TargetModelDrivenApp, TargetTable } from '@/types/sidecar-admin-models';
+import { parsePromptCatalog, serializePromptCatalog, type PromptCatalog } from '@/lib/sidecar-prompts';
 import { buildCopilotStudioConnectionString, classifyCopilotStudioHarness, isMicrosoftSystemAgent, parseCopilotStudioConnectionString } from '@/utils/agent-link';
 import { discoverAppForms, type DiscoveredForm } from '@/services/model-driven-app-discovery';
 import { isInformationFormName } from '@/lib/target-forms';
@@ -25,6 +26,11 @@ const HANDLER = 'AgentSidecar.initializeGuide';
 const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Result<T> = { data?: T; error?: unknown };
 type Form = DiscoveredForm;
+// The generated model is read-only and does not yet include the maftagsc_prompts
+// column added for admin-authored suggested prompts. The Dataverse client passes
+// unknown fields through, so we widen the read/write type locally rather than
+// editing src/generated.
+type ConfigurationRecord = Maftagsc_sidecarconfigurations & { maftagsc_prompts?: string | null };
 
 function message(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -151,13 +157,18 @@ function includesHandler(value: string, id: string): boolean {
     && item.getAttribute('libraryName') === LIBRARY,
   );
 }
-function map(record: Maftagsc_sidecarconfigurations, bindings: Maftagsc_targetbindings[], checks: SidecarHealthCheck[] = []): SidecarConfiguration {
+function map(record: ConfigurationRecord, bindings: Maftagsc_targetbindings[], checks: SidecarHealthCheck[] = []): SidecarConfiguration {
   const tables = new Map<string, TargetTable>();
   for (const binding of bindings) {
     const form = { formId: binding.maftagsc_formid, name: binding.maftagsc_formname ?? binding.maftagsc_formid, enabled: binding.maftagsc_enabled };
     const current = tables.get(binding.maftagsc_tablelogicalname);
     if (current) { current.formCount += 1; current.forms.push(form); current.enabled = current.enabled || binding.maftagsc_enabled; }
     else tables.set(binding.maftagsc_tablelogicalname, { logicalName: binding.maftagsc_tablelogicalname, displayName: binding.maftagsc_tabledisplayname, enabled: binding.maftagsc_enabled, formCount: 1, forms: [form] });
+  }
+  const promptCatalog = parsePromptCatalog(record.maftagsc_prompts);
+  for (const table of tables.values()) {
+    const prompts = promptCatalog[table.logicalName];
+    if (prompts && prompts.length) table.prompts = prompts;
   }
   const healthState = health(record.maftagsc_healthstate);
   return {
@@ -454,6 +465,13 @@ export function createRealSidecarAdministrationProvider(): SidecarAdministration
       }
     },
     validate,
+    async savePrompts(id: string, promptsByTable: PromptCatalog) {
+      const configurationId = guid(id, 'Configuration ID');
+      const serialized = serializePromptCatalog(promptsByTable);
+      data(await Configurations.update(configurationId, { maftagsc_prompts: serialized } as unknown as Parameters<typeof Configurations.update>[1]), 'Save suggested prompts');
+      const [record, bindings] = await Promise.all([Configurations.get(configurationId), bindingsFor(configurationId)]);
+      return map(data(record, 'Read configuration'), bindings);
+    },
     async reconcile(id, onProgress) { const configurationId = guid(id, 'Configuration ID'); await mutate(configurationId, 'apply', onProgress); data(await Configurations.update(configurationId, { statecode: 0, statuscode: STATUS.deployed, maftagsc_healthstate: HEALTH.healthy, maftagsc_lastoperationsummary: 'Approved reconciliation completed.' }), 'Complete reconciliation'); return validate(configurationId); },
     async setEnabled(id, enabled, onProgress) {
       const configurationId = guid(id, 'Configuration ID');

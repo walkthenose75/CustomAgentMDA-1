@@ -5,7 +5,13 @@ import {
     FallbackSidecarConfigurationRepository
 } from "./sidecarConfigurationRepository";
 
-function entityBinding(logicalName: string, screenName: string): SidecarEntityBinding {
+// Bindings intentionally carry no inline prompts: the suggested-prompt catalog
+// (promptCatalog.ts) is the single source of truth and is applied uniformly to
+// both this bootstrap fallback and the Dataverse-backed configuration at runtime.
+function entityBinding(
+    logicalName: string,
+    screenName: string
+): SidecarEntityBinding {
     return Object.freeze({ logicalName, screenName });
 }
 

@@ -100,6 +100,150 @@ describe("sidecar configuration resolution", () => {
         );
     });
 
+    function createPromptAwareRepository(prompts: unknown) {
+        return new DataverseSidecarConfigurationRepository(() => ({
+            async retrieveMultipleRecords(entityLogicalName) {
+                return entityLogicalName === "maftagsc_sidecarconfiguration"
+                    ? {
+                        entities: [{
+                            maftagsc_sidecarconfigurationid: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                            maftagsc_panetitle: "Insights and actions",
+                            maftagsc_panewidth: 420,
+                            maftagsc_publicclientapplicationid: "9d03cd77-5246-4c9c-8e9d-262bff547a25",
+                            maftagsc_tenantid: "d92190b9-98e7-46da-8b11-580e06c7d15d",
+                            maftagsc_environmentid: "7d8dcd87-2e21-e805-b9be-678794ecc80b",
+                            maftagsc_agentschemaname: "cr88d_insightsandactions_AChDbK",
+                            maftagsc_agentconnectionstring: "https://7d8dcd872e21e805b9be678794ecc8.0b.environment.api.powerplatform.com/copilotstudio/agenticruntime/3p/dataverse-backed/authenticated/bots/cr88d_insightsandactions_AChDbK?api-version=1",
+                            maftagsc_prompts: prompts
+                        }]
+                    }
+                    : {
+                        entities: [{
+                            maftagsc_tablelogicalname: "account",
+                            maftagsc_tabledisplayname: "Account",
+                            maftagsc_enabled: true
+                        }]
+                    };
+            }
+        }));
+    }
+
+    it("selects and applies admin-authored prompts onto matching bindings", async () => {
+        const configuration = await createPromptAwareRepository(JSON.stringify({
+            account: [
+                { label: "Summarize", text: "Summarize this account." },
+                { label: "Open risks", text: "List open risks.", roles: ["Salesperson"] }
+            ]
+        })).getByAppId(APP_ID);
+
+        expect(getEntityBinding(configuration, "account")).toEqual({
+            logicalName: "account",
+            screenName: "Account record form",
+            prompts: [
+                { label: "Summarize", text: "Summarize this account." },
+                { label: "Open risks", text: "List open risks.", roles: ["Salesperson"] }
+            ]
+        });
+    });
+
+    it("ignores authored prompts for logical names without an enabled binding", async () => {
+        const configuration = await createPromptAwareRepository(JSON.stringify({
+            incident: [{ label: "Unbound", text: "Should not appear." }]
+        })).getByAppId(APP_ID);
+
+        expect(getEntityBinding(configuration, "account")).toEqual({
+            logicalName: "account",
+            screenName: "Account record form"
+        });
+        expect(getEntityBinding(configuration, "incident")).toBeNull();
+    });
+
+    it("tolerates malformed prompt JSON without failing configuration resolution", async () => {
+        const configuration = await createPromptAwareRepository("{ not valid json").getByAppId(APP_ID);
+
+        expect(getEntityBinding(configuration, "account")).toEqual({
+            logicalName: "account",
+            screenName: "Account record form"
+        });
+    });
+
+    it("drops prompt entries missing a label or text", async () => {
+        const configuration = await createPromptAwareRepository(JSON.stringify({
+            account: [
+                { label: "", text: "no label" },
+                { label: "no text", text: "" },
+                { label: "Keep", text: "Kept" }
+            ]
+        })).getByAppId(APP_ID);
+
+        expect(getEntityBinding(configuration, "account")).toEqual({
+            logicalName: "account",
+            screenName: "Account record form",
+            prompts: [{ label: "Keep", text: "Kept" }]
+        });
+    });
+
+    it("degrades gracefully when the environment lacks the prompts column", async () => {
+        const attempts: string[] = [];
+        const repository = new DataverseSidecarConfigurationRepository(() => ({
+            async retrieveMultipleRecords(entityLogicalName, options) {
+                if (entityLogicalName === "maftagsc_sidecarconfiguration") {
+                    attempts.push(options);
+                    if (options.includes("maftagsc_prompts")) {
+                        throw new Error(
+                            "Could not find a property named 'maftagsc_prompts' on type 'Microsoft.Dynamics.CRM.maftagsc_sidecarconfiguration'."
+                        );
+                    }
+                    return {
+                        entities: [{
+                            maftagsc_sidecarconfigurationid: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                            maftagsc_panetitle: "Insights and actions",
+                            maftagsc_panewidth: 420,
+                            maftagsc_publicclientapplicationid: "9d03cd77-5246-4c9c-8e9d-262bff547a25",
+                            maftagsc_tenantid: "d92190b9-98e7-46da-8b11-580e06c7d15d",
+                            maftagsc_environmentid: "7d8dcd87-2e21-e805-b9be-678794ecc80b",
+                            maftagsc_agentschemaname: "cr88d_insightsandactions_AChDbK",
+                            maftagsc_agentconnectionstring: "https://7d8dcd872e21e805b9be678794ecc8.0b.environment.api.powerplatform.com/copilotstudio/agenticruntime/3p/dataverse-backed/authenticated/bots/cr88d_insightsandactions_AChDbK?api-version=1"
+                        }]
+                    };
+                }
+                return {
+                    entities: [{
+                        maftagsc_tablelogicalname: "account",
+                        maftagsc_tabledisplayname: "Account",
+                        maftagsc_enabled: true
+                    }]
+                };
+            }
+        }));
+
+        const configuration = await repository.getByAppId(APP_ID);
+
+        expect(attempts).toHaveLength(2);
+        expect(attempts[0]).toContain("maftagsc_prompts");
+        expect(attempts[1]).not.toContain("maftagsc_prompts");
+        expect(getEntityBinding(configuration, "account")).toEqual({
+            logicalName: "account",
+            screenName: "Account record form"
+        });
+    });
+
+    it("does not retry when a configuration query fails for an unrelated reason", async () => {
+        let attempts = 0;
+        const repository = new DataverseSidecarConfigurationRepository(() => ({
+            async retrieveMultipleRecords(entityLogicalName) {
+                if (entityLogicalName === "maftagsc_sidecarconfiguration") {
+                    attempts += 1;
+                    throw new Error("Service Protection API limit exceeded.");
+                }
+                return { entities: [] };
+            }
+        }));
+
+        await expect(repository.getByAppId(APP_ID)).rejects.toThrow(/Service Protection/);
+        expect(attempts).toBe(1);
+    });
+
     it("uses only the saved URL for SDK direct-connect settings", () => {
         const directConnectUrl = "https://7d8dcd872e21e805b9be678794ecc8.0b.environment.api.powerplatform.com/copilotstudio/agenticruntime/3p/dataverse-backed/authenticated/bots/cr88d_insightsandactions_AChDbK?api-version=1";
         const settings = createSidecarConnectionSettings(createConfiguration({
