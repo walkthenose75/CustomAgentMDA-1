@@ -4,6 +4,21 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Agent Sidecar — Silent Auth Continuity &amp; Dynamic Role-Aware Prompts</title>
+<meta name="description" content="Technical design &amp; delivery dossier for the Agent Sidecar: silent auth continuity and dynamic role-aware prompts for the Copilot Studio agent embedded in Dynamics 365 model-driven forms — architecture diagrams, real code, and an implementation guide." />
+<meta name="author" content="Agent Sidecar" />
+<meta name="theme-color" content="#b11f4b" />
+<link rel="canonical" href="https://walkthenose75.github.io/CustomAgentMDA-1/presentation/" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Agent Sidecar" />
+<meta property="og:title" content="Agent Sidecar — Silent Auth Continuity &amp; Dynamic Role-Aware Prompts" />
+<meta property="og:description" content="Architecture, real code, and an implementation guide for two production-grade enhancements to the Dynamics 365 Copilot sidecar." />
+<meta property="og:url" content="https://walkthenose75.github.io/CustomAgentMDA-1/presentation/" />
+<meta property="og:image" content="https://walkthenose75.github.io/CustomAgentMDA-1/presentation/og-cover.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Agent Sidecar — Silent Auth &amp; Dynamic Prompts" />
+<meta name="twitter:description" content="Architecture, real code, and an implementation guide for the Dynamics 365 Copilot sidecar enhancements." />
+<meta name="twitter:image" content="https://walkthenose75.github.io/CustomAgentMDA-1/presentation/og-cover.png" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23b11f4b'/%3E%3Cpath d='M7 8h18v12H12l-5 5V8z' fill='white'/%3E%3C/svg%3E" />
 <script>
   (() => {
     const param = new URLSearchParams(window.location.search).get("scoutTheme");
@@ -219,11 +234,94 @@ hr.soft { border: none; border-top: 1px solid var(--cp-border); margin: 26px 0; 
 .reveal { opacity: 0; transform: translateY(14px); transition: opacity 0.5s ease, transform 0.5s ease; }
 .reveal.in { opacity: 1; transform: none; }
 
+/* Mobile nav toggle */
+.nav-toggle { display: none; align-items: center; justify-content: center; border: 1px solid var(--cp-border-strong); background: var(--cp-surface); color: var(--cp-text); border-radius: 0.625rem; padding: 6px 11px; font-size: 15px; cursor: pointer; }
+.nav-toggle:hover { border-color: var(--cp-accent); color: var(--cp-accent); }
+
+/* Accessibility */
+a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); outline-offset: 2px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
+  .reveal { opacity: 1 !important; transform: none !important; }
+}
+
+/* Interactive demo */
+.demo-card { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; overflow: hidden; box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14); display: flex; flex-direction: column; min-height: 400px; }
+.demo-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--cp-border); background: var(--cp-surface-soft); }
+.demo-head .avatar { width: 30px; height: 30px; border-radius: 9px; background: var(--cp-accent); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.demo-head .title { font-weight: 700; font-size: 13.5px; }
+.demo-head .sub { font-size: 11px; color: var(--cp-text-soft); }
+.seg { margin-left: auto; display: inline-flex; border: 1px solid var(--cp-border); border-radius: 999px; overflow: hidden; }
+.seg button { border: none; background: transparent; color: var(--cp-text-muted); font: 600 12px "Segoe UI", sans-serif; padding: 5px 12px; cursor: pointer; }
+.seg button.on { background: var(--cp-accent); color: var(--cp-accent-fg); }
+.demo-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+.chips-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.pchip { border: 1px solid var(--cp-accent); color: var(--cp-accent); background: var(--cp-accent-soft); border-radius: 999px; padding: 6px 12px; font: 600 12.5px "Segoe UI", sans-serif; cursor: pointer; }
+.pchip:hover { background: var(--cp-accent); color: var(--cp-accent-fg); }
+.transcript { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: 210px; padding-right: 4px; }
+.transcript .hint { color: var(--cp-text-soft); font-size: 12.5px; font-style: italic; }
+.bubble { max-width: 88%; padding: 8px 12px; border-radius: 12px; font-size: 12.5px; line-height: 1.45; }
+.bubble.user { align-self: flex-end; background: var(--cp-accent-soft); border: 1px solid var(--cp-accent); }
+.bubble.bot { align-self: flex-start; background: var(--cp-surface-soft); border: 1px solid var(--cp-border); }
+.bubble .ctx { display: block; margin-top: 5px; font-size: 10px; color: var(--cp-text-soft); }
+.tk-bar { height: 10px; border-radius: 999px; background: var(--cp-surface-soft); overflow: hidden; border: 1px solid var(--cp-border); }
+.tk-bar > span { display: block; height: 100%; width: 100%; background: var(--cp-accent); }
+.tk-pill { font: 700 11.5px "Segoe UI", sans-serif; padding: 3px 10px; border-radius: 999px; }
+.tk-pill.active { background: color-mix(in srgb, var(--cp-success) 16%, transparent); color: var(--cp-success); }
+.tk-pill.refresh { background: var(--cp-accent-soft); color: var(--cp-accent); }
+.tk-pill.reconnect { background: color-mix(in srgb, var(--cp-danger) 14%, transparent); color: var(--cp-danger); }
+.metric-line { font-size: 12px; color: var(--cp-text-soft); }
+.demo-btn { border: 1px solid var(--cp-border-strong); background: var(--cp-surface); color: var(--cp-text); border-radius: 0.625rem; padding: 7px 12px; font: 600 12.5px "Segoe UI", sans-serif; cursor: pointer; }
+.demo-btn:hover { border-color: var(--cp-accent); color: var(--cp-accent); }
+.reconnect-chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--cp-danger); color: var(--cp-danger); background: color-mix(in srgb, var(--cp-danger) 8%, transparent); border-radius: 999px; padding: 7px 13px; font: 600 12.5px "Segoe UI", sans-serif; cursor: pointer; align-self: flex-start; }
+.reconnect-chip:hover { background: color-mix(in srgb, var(--cp-danger) 14%, transparent); }
+.demo-note { font-size: 11.5px; color: var(--cp-text-soft); }
+
+/* Economics / value showcase */
+.muted { color: var(--cp-text-muted); line-height: 1.55; }
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 8px 0 24px; }
+.stat-card { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; padding: 18px; box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14); position: relative; overflow: hidden; }
+.stat-card::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 4px; background: var(--cp-accent); }
+.stat-card .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--cp-text-soft); font-weight: 700; }
+.stat-card .v { font-size: 34px; font-weight: 800; line-height: 1.05; margin: 9px 0 5px; letter-spacing: -0.02em; }
+.stat-card .v.accent { color: var(--cp-accent); }
+.stat-card .s { font-size: 12px; color: var(--cp-text-muted); }
+.costbar { display: flex; flex-direction: column; gap: 12px; margin: 10px 0 6px; }
+.costbar .row { display: flex; align-items: center; gap: 12px; }
+.costbar .lab { width: 128px; flex: none; font-size: 12.5px; font-weight: 700; color: var(--cp-text-muted); }
+.costbar .track { flex: 1; height: 30px; background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 999px; overflow: hidden; }
+.costbar .fill { height: 100%; border-radius: 999px; min-width: 4px; }
+.costbar .fill.dev { background: var(--cp-accent); }
+.costbar .fill.ai { background: color-mix(in srgb, var(--cp-success) 82%, transparent); }
+.costbar .amt { width: 92px; flex: none; text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+.value-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 4px 0 6px; }
+.value-table th, .value-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--cp-border); }
+.value-table th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--cp-text-soft); }
+.value-table td.h { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+.value-table tr.total td { border-top: 2px solid var(--cp-border-strong); border-bottom: none; font-weight: 800; }
+.lens-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 10px 0 18px; }
+.metric-strip { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 16px; }
+.metric-strip .m { background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 999px; padding: 6px 13px; font-size: 12px; color: var(--cp-text-muted); }
+.metric-strip .m strong { color: var(--cp-accent); font-variant-numeric: tabular-nums; }
+.punch { font-size: 17px; line-height: 1.55; border-left: 3px solid var(--cp-accent); padding: 8px 0 8px 16px; margin: 10px 0 2px; font-weight: 600; }
+
 @media (max-width: 940px) {
   .layout { grid-template-columns: 1fr; }
   aside.toc { display: none; }
   .grid.two, .grid.three { grid-template-columns: 1fr; }
-  .topbar nav { display: none; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .lens-grid { grid-template-columns: 1fr; }
+  .costbar .lab { width: 88px; }
+  .nav-toggle { display: inline-flex; }
+  .topbar nav {
+    display: none; position: absolute; top: 100%; left: 0; right: 0;
+    flex-direction: column; gap: 2px; align-items: stretch;
+    background: var(--cp-panel-strong); backdrop-filter: saturate(140%) blur(8px);
+    border-bottom: 1px solid var(--cp-border); padding: 8px 16px;
+  }
+  .topbar.open nav { display: flex; }
+  .topbar nav a { padding: 10px 12px; }
 }
 @media print {
   header.topbar, aside.toc, #progress, .theme-toggle { display: none !important; }
@@ -240,6 +338,8 @@ hr.soft { border: none; border-top: 1px solid var(--cp-border); margin: 26px 0; 
   <div class="brand"><span class="dot"></span> Agent Sidecar</div>
   <nav>
     <a href="#summary">Summary</a>
+    <a href="#economics">Economics</a>
+    <a href="#demo">Demo</a>
     <a href="#architecture">Architecture</a>
     <a href="#auth">Silent Auth</a>
     <a href="#prompts">Prompts</a>
@@ -247,6 +347,7 @@ hr.soft { border: none; border-top: 1px solid var(--cp-border); margin: 26px 0; 
     <a href="#testing">Testing</a>
     <a href="#status">Status</a>
   </nav>
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
   <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">◐ Theme</button>
 </header>
 
@@ -256,6 +357,8 @@ hr.soft { border: none; border-top: 1px solid var(--cp-border); margin: 26px 0; 
 <aside class="toc" aria-label="Table of contents">
   <div class="toc-title">Contents</div>
   <a href="#summary">Executive summary</a>
+  <a href="#economics">What it cost to build</a>
+  <a href="#demo">See it in action</a>
   <a href="#architecture">System architecture</a>
   <div class="toc-title">Feature 1</div>
   <a href="#auth">Silent auth continuity</a>
@@ -313,6 +416,175 @@ hr.soft { border: none; border-top: 1px solid var(--cp-border); margin: 26px 0; 
     <div class="card"><div class="num">0</div><div class="cap">Dataverse schema changes required — prompts persist as JSON on an existing column.</div></div>
     <div class="card"><div class="num">~5 min</div><div class="cap">Refresh skew — a fresh token is in hand before the old one could ever be presented.</div></div>
     <div class="card"><div class="num">1 click</div><div class="cap">Worst-case recovery — the "Reconnect" chip resumes the <em>same</em> conversation, usually with zero prompts.</div></div>
+  </div>
+</section>
+
+<!-- ECONOMICS -->
+<section id="economics">
+  <div class="sec-kicker">— The economics</div>
+  <h2>What it cost to build — AI vs. by hand</h2>
+  <p>This entire delivery — two production features, automated tests, a full documentation set, live deployment, and this interactive presentation — was built with an AI coding agent in about a day and a half, on roughly <strong>10 hours</strong> of human direction and review. Here is the metered AI cost <em>plus</em> that human time, compared line‑for‑line against what the same scope would cost a developer to hand‑build at <strong>$150/hour</strong>.</p>
+
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="k">AI compute — metered</div>
+      <div class="v accent">$326</div>
+      <div class="s">826 Copilot credits · 5h 9m active</div>
+    </div>
+    <div class="stat-card">
+      <div class="k">Your direction time</div>
+      <div class="v">~10 hrs</div>
+      <div class="s">≈$1,500 @ $150/hr · measured from the session</div>
+    </div>
+    <div class="stat-card">
+      <div class="k">All‑in AI‑assisted cost</div>
+      <div class="v accent">~$1,826</div>
+      <div class="s">$326 compute + ~$1,500 your time</div>
+    </div>
+    <div class="stat-card">
+      <div class="k">Same scope, by hand</div>
+      <div class="v">$18,000</div>
+      <div class="s">≈120 dev‑hours @ $150/hr · ~3 weeks</div>
+    </div>
+  </div>
+
+  <p class="punch">Net result: ≈<strong>10× lower cost</strong> all‑in (≈55× on compute alone), about <strong>$16,200 saved</strong>, delivered in <strong>~1.5 days</strong> instead of ~3 weeks.</p>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>Cost, to scale</h3>
+      <p class="muted" style="margin-top:-4px;">Every hour of your direction is counted at $150/hr. The AI‑assisted bars are still barely there.</p>
+      <div class="costbar" role="img" aria-label="By hand eighteen thousand dollars; AI all-in about one thousand eight hundred; AI compute three hundred twenty-six dollars">
+        <div class="row">
+          <span class="lab">By hand</span>
+          <span class="track"><span class="fill dev" style="width:100%"></span></span>
+          <span class="amt">$18,000</span>
+        </div>
+        <div class="row">
+          <span class="lab">AI, all‑in</span>
+          <span class="track"><span class="fill ai" style="width:10.1%"></span></span>
+          <span class="amt" style="color:var(--cp-success)">$1,826</span>
+        </div>
+        <div class="row">
+          <span class="lab">AI compute</span>
+          <span class="track"><span class="fill ai" style="width:1.8%"></span></span>
+          <span class="amt" style="color:var(--cp-success)">$326</span>
+        </div>
+      </div>
+      <p class="punch">Your <strong>~10 hours</strong> of direction produced roughly <strong>120 hours</strong> of engineering output — about a <strong>12× multiplier</strong> on your time.</p>
+    </div>
+
+    <div class="card">
+      <h3>Two honest ways to read the AI cost</h3>
+      <div class="lens-grid">
+        <div>
+          <div class="k" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--cp-text-soft);font-weight:700;">Inference list‑price</div>
+          <div class="v" style="font-size:26px;font-weight:800;color:var(--cp-accent);margin:6px 0 2px;">$326.12</div>
+          <div class="s" style="font-size:12px;color:var(--cp-text-muted);">What the raw compute would cost at public per‑token list rates (cache‑aware, Claude Opus 4.8). The conservative, apples‑to‑apples “cost to produce.”</div>
+        </div>
+        <div>
+          <div class="k" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--cp-text-soft);font-weight:700;">Copilot premium requests</div>
+          <div class="v" style="font-size:26px;font-weight:800;margin:6px 0 2px;">826 credits</div>
+          <div class="s" style="font-size:12px;color:var(--cp-text-muted);">≈ <strong>$33</strong> at the $0.04/request overage rate — and comfortably inside a single Copilot seat’s monthly premium‑request allowance.</div>
+        </div>
+      </div>
+      <p class="muted" style="font-size:12px;margin:2px 0 0;">Either lens tells the same story: the marginal cost of shipping this work with AI is a rounding error against a developer’s time.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px;">
+    <h3>How the $18,000 was estimated — bottom‑up, by workstream</h3>
+    <p class="muted" style="margin-top:-4px;">A senior developer’s effort to hand‑build the <strong>same verified scope</strong> — 43 files, +4,570 lines of code, 8 automated tests, 10 documents, a deployed interactive deck — including research, debugging, testing, and review.</p>
+    <table class="value-table">
+      <thead><tr><th>Workstream</th><th>What it covers</th><th class="h">Hours</th><th class="h">@ $150/hr</th></tr></thead>
+      <tbody>
+        <tr><td>Discovery &amp; root‑cause</td><td>Diagnose mid‑session 401s; MSAL token lifecycle; Dynamics COOP limits; SDK token‑setter spike</td><td class="h">10</td><td class="h">$1,500</td></tr>
+        <tr><td>Silent‑auth implementation</td><td>Refresh scheduler, silent‑refresh loop + retry, login‑hint plumbing across 3 files, connection rebuild preserving the chat, reconnect UX</td><td class="h">26</td><td class="h">$3,900</td></tr>
+        <tr><td>Silent‑auth tests &amp; verification</td><td>Unit tests + 4‑layer manual test recipe</td><td class="h">10</td><td class="h">$1,500</td></tr>
+        <tr><td>Dynamic‑prompts runtime</td><td>Config model, bundled catalog as single source of truth, merge logic, role filtering, chip bar, serialization + validation</td><td class="h">22</td><td class="h">$3,300</td></tr>
+        <tr><td>Prompts automated tests</td><td>Config validation, role‑filter, catalog merge</td><td class="h">6</td><td class="h">$900</td></tr>
+        <tr><td>Prompt authoring</td><td>6 role‑tuned prompts × 2 incident tables, deployed live</td><td class="h">3</td><td class="h">$450</td></tr>
+        <tr><td>Documentation set</td><td>Design doc, ADR, deployment runbook + appendix, 2 handoff specs, setup guides (10 docs)</td><td class="h">13</td><td class="h">$1,950</td></tr>
+        <tr><td>This presentation</td><td>955‑line self‑contained page, 4 architecture diagrams, 2 interactive demos, responsive + accessible + themed, published to Pages</td><td class="h">22</td><td class="h">$3,300</td></tr>
+        <tr><td>Git / PR / deploy</td><td>Fork &amp; branch, 18 commits, PR packaging, deploy to Dev, live verification</td><td class="h">8</td><td class="h">$1,200</td></tr>
+        <tr class="total"><td>Total</td><td>Bottom‑up midpoint (range 97–146 h · $14,550–$21,900)</td><td class="h">≈120</td><td class="h">≈$18,000</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:22px;">By the numbers</h3>
+  <div class="metric-strip">
+    <span class="m"><strong>85.3M</strong> tokens processed</span>
+    <span class="m"><strong>99.998%</strong> cache / context reuse</span>
+    <span class="m"><strong>1.36M</strong> tokens generated</span>
+    <span class="m"><strong>5h 9m</strong> active compute</span>
+    <span class="m"><strong>826</strong> premium‑request credits</span>
+    <span class="m"><strong>~10h</strong> your direction</span>
+    <span class="m"><strong>~12×</strong> leverage on your time</span>
+    <span class="m"><strong>43</strong> files · <strong>+4,570</strong> LOC · <strong>18</strong> commits</span>
+  </div>
+  <p class="muted">Of 85.3M prompt tokens, only <strong>~1,360 were fresh input</strong> — the rest was cached context replayed at a fraction of the price. That prompt‑cache efficiency is the difference between a $326 build and a naïve “tokens × rate” estimate several times higher.</p>
+
+  <div class="callout" style="margin-top:16px;">
+    <strong>Methodology &amp; honesty notes.</strong>
+    <ul style="margin:8px 0 0; padding-left:18px; line-height:1.55;">
+      <li><strong>AI cost is metered, not modelled</strong> — taken from GitHub Copilot CLI session telemetry for this workspace and priced cache‑aware at public list rates. It is an estimate, not an invoice.</li>
+      <li><strong>The developer figure is a bottom‑up estimate</strong> for the same delivered scope at the stated $150/hr. Actuals vary with a developer’s seniority and familiarity with MSAL, the Copilot Studio SDK, and Dynamics.</li>
+      <li><strong>Your direction time is counted — and measured, not guessed.</strong> The ~10 hours of hands‑on direction and review comes from the session’s own timestamps (9.4–11.5 h of engaged activity across ~12 work blocks, 58 turns), and is included in the all‑in $1,826. The AI’s ~5 h of compute ran inside that window.</li>
+      <li><strong>The AI cost shown is a conservative floor</strong> — an earlier exploration session was not metered by the telemetry, so real all‑in AI spend is modestly higher and the multiple even larger.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- INTERACTIVE DEMO -->
+<section id="demo">
+  <div class="sec-kicker">— Interactive</div>
+  <h2>See it in action</h2>
+  <p>Two live micro-demos, running entirely in this page — simulated, no backend, timings accelerated. They mirror the real pane behaviour: form-scoped prompt chips that carry record context and respect roles, and a delegated token that renews itself silently, degrading to a single-click reconnect only when interaction is genuinely required.</p>
+  <div class="grid two">
+
+    <div class="demo-card">
+      <div class="demo-head">
+        <span class="avatar"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H8l-4 4V5z" fill="var(--cp-accent-fg)"/></svg></span>
+        <div>
+          <div class="title">Incident Report · INC-0042</div>
+          <div class="sub">form-scoped suggested prompts</div>
+        </div>
+        <div class="seg" id="roleSeg" role="group" aria-label="View as role">
+          <button data-role="Agent" class="on">Agent</button>
+          <button data-role="Manager">Manager</button>
+        </div>
+      </div>
+      <div class="demo-body">
+        <div class="chips-row" id="demoChips"></div>
+        <div class="transcript" id="demoTranscript">
+          <div class="hint">Click a prompt — it sends with record + role context attached. Switch to “Manager” to reveal a role-gated chip.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-card">
+      <div class="demo-head">
+        <span class="avatar"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="var(--cp-accent-fg)" stroke-width="2" fill="none"/><rect x="5" y="10" width="14" height="10" rx="2" fill="var(--cp-accent-fg)"/></svg></span>
+        <div>
+          <div class="title">Delegated access token</div>
+          <div class="sub">silent-refresh loop</div>
+        </div>
+        <span class="tk-pill active" id="tkPill" style="margin-left:auto;">Active</span>
+      </div>
+      <div class="demo-body">
+        <div class="tk-bar" aria-hidden="true"><span id="tkBar"></span></div>
+        <div class="metric-line" id="tkCap">auto-refreshes ~5 min before expiry (accelerated for demo)</div>
+        <div class="metric-line">Silent refreshes this session: <strong id="tkCount">0</strong></div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:auto;">
+          <button class="demo-btn" id="simExpiry">Simulate interaction-required</button>
+          <button class="demo-btn" id="tkStep" hidden>Run one refresh</button>
+        </div>
+        <button class="reconnect-chip" id="reconnectChip" hidden>⟳ Session expired — Reconnect</button>
+        <div class="demo-note">The reconnect reuses the login hint and resumes the <em>same</em> conversation — usually zero prompts.</div>
+      </div>
+    </div>
+
   </div>
 </section>
 
@@ -782,7 +1054,8 @@ npm run build:model-driven &amp;&amp; npm run test:model-driven &amp;&amp; npm r
 </section>
 
 <footer>
-  <p><strong>Agent Sidecar</strong> — Silent Auth Continuity &amp; Dynamic Role-Aware Prompts. Delegated identity · no schema change · <a href="https://github.com/martycarreras-psnl/CustomAgentMDA/pull/3">PR #3</a>. This page is self-contained and lives in the repository at <code>docs/presentation/index.html</code>.</p>
+  <p><strong>Agent Sidecar</strong> — Silent Auth Continuity &amp; Dynamic Role-Aware Prompts. Delegated identity · no schema change.</p>
+  <p>Source: <a href="https://github.com/walkthenose75/CustomAgentMDA-1">walkthenose75/CustomAgentMDA-1</a> · Pull request: <a href="https://github.com/martycarreras-psnl/CustomAgentMDA/pull/3">PR #3 ↗</a> · Self-contained page at <code>docs/presentation/index.html</code>. Supports light/dark, reduced-motion, and print-to-PDF.</p>
 </footer>
 
 </main>
@@ -826,6 +1099,102 @@ npm run build:model-driven &amp;&amp; npm run test:model-driven &amp;&amp; npm r
   document.querySelectorAll(".card, .diagram-wrap, .callout, pre").forEach(el => {
     el.classList.add("reveal"); revealObserver.observe(el);
   });
+
+  // Reduced motion + mobile nav
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const topbar = document.querySelector("header.topbar");
+  const navToggle = document.getElementById("navToggle");
+  if (navToggle && topbar) {
+    navToggle.addEventListener("click", () => {
+      const open = topbar.classList.toggle("open");
+      navToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    topbar.querySelectorAll("nav a").forEach(a => a.addEventListener("click", () => {
+      topbar.classList.remove("open"); navToggle.setAttribute("aria-expanded", "false");
+    }));
+  }
+
+  // ---- Demo A: role-aware prompt chips ----
+  const DEMO_PROMPTS = [
+    { label: "Summarize this incident", text: "Summarize this incident report, including status and actions taken so far.", reply: "INC-0042 — Sev-2 network degradation, opened 2h ago, ~40 users affected. Mitigation underway; last action: rolled back firewall change #8821." },
+    { label: "Recommend next steps", text: "What are the recommended next steps to investigate and resolve this?", reply: "1) Confirm blast radius. 2) Correlate with recent changes. 3) Page network on-call. 4) Post a stakeholder update." },
+    { label: "Find similar incidents", text: "Find similar past incidents and how they were resolved.", reply: "3 similar: INC-0031, INC-0029, INC-0014 — each resolved by reverting a firewall rule; mean time to resolve 46 min." },
+    { label: "Draft a status update", text: "Draft a concise status update for stakeholders.", reply: "“We're investigating a network degradation affecting a subset of users. Mitigation is underway; next update in 30 min.”" },
+    { label: "Escalate to management", text: "Escalate this incident to management with the required impact and timeline.", roles: ["Manager"], reply: "Escalation drafted to the incident manager: impact, timeline, current owner, and requested decision. Ready to send." }
+  ];
+  let demoRole = "Agent";
+  const chipsRow = document.getElementById("demoChips");
+  const transcript = document.getElementById("demoTranscript");
+  function makeBubble(cls, html) { const d = document.createElement("div"); d.className = "bubble " + cls; d.innerHTML = html; return d; }
+  function sendDemoPrompt(p) {
+    const hint = transcript.querySelector(".hint"); if (hint) hint.remove();
+    transcript.appendChild(makeBubble("user", p.text + '<span class="ctx">✓ context attached · record INC-0042 · role: ' + demoRole + '</span>'));
+    transcript.scrollTop = transcript.scrollHeight;
+    setTimeout(() => { transcript.appendChild(makeBubble("bot", p.reply)); transcript.scrollTop = transcript.scrollHeight; }, reduce ? 0 : 480);
+  }
+  function renderDemoChips() {
+    if (!chipsRow) return;
+    chipsRow.innerHTML = "";
+    DEMO_PROMPTS.filter(p => !p.roles || p.roles.includes(demoRole)).forEach(p => {
+      const b = document.createElement("button"); b.className = "pchip"; b.textContent = p.label;
+      b.addEventListener("click", () => sendDemoPrompt(p)); chipsRow.appendChild(b);
+    });
+  }
+  document.querySelectorAll("#roleSeg button").forEach(btn => btn.addEventListener("click", () => {
+    demoRole = btn.getAttribute("data-role");
+    document.querySelectorAll("#roleSeg button").forEach(b => b.classList.toggle("on", b === btn));
+    renderDemoChips();
+  }));
+  renderDemoChips();
+
+  // ---- Demo B: silent-refresh token loop ----
+  const tkBar = document.getElementById("tkBar");
+  const tkPill = document.getElementById("tkPill");
+  const tkCap = document.getElementById("tkCap");
+  const tkCount = document.getElementById("tkCount");
+  const reconnectChip = document.getElementById("reconnectChip");
+  const stepBtn = document.getElementById("tkStep");
+  let tkState = "active", tkRefreshes = 0, tkTimer = null;
+  function setPill(state, text) { if (tkPill) { tkPill.className = "tk-pill " + state; tkPill.textContent = text; } }
+  function clearTk() { if (tkTimer) { clearTimeout(tkTimer); tkTimer = null; } }
+  function runCycle() {
+    if (tkState !== "active" || reduce || !tkBar) return;
+    tkBar.style.transition = "none"; tkBar.style.width = "100%"; void tkBar.offsetWidth;
+    tkBar.style.transition = "width 5.5s linear"; tkBar.style.width = "8%";
+    tkTimer = setTimeout(() => {
+      if (tkState !== "active") return;
+      setPill("refresh", "Refreshing…"); tkCap.textContent = "acquireTokenSilent — CORS POST, no popup";
+      tkTimer = setTimeout(() => {
+        if (tkState !== "active") return;
+        tkRefreshes++; if (tkCount) tkCount.textContent = tkRefreshes;
+        setPill("active", "Active"); tkCap.textContent = "Renewed silently · conversation preserved (same conversationId)";
+        tkTimer = setTimeout(runCycle, 500);
+      }, 750);
+    }, 5500);
+  }
+  function startAuthDemo() {
+    tkState = "active"; setPill("active", "Active");
+    if (reconnectChip) reconnectChip.hidden = true;
+    if (!reduce) { tkCap.textContent = "auto-refreshes ~5 min before expiry (accelerated for demo)"; runCycle(); }
+    else { if (tkBar) tkBar.style.width = "55%"; tkCap.textContent = "Reduced-motion: use “Run one refresh” to step the loop."; if (stepBtn) stepBtn.hidden = false; }
+  }
+  const simExpiry = document.getElementById("simExpiry");
+  if (simExpiry) simExpiry.addEventListener("click", () => {
+    tkState = "reconnect"; clearTk();
+    if (tkBar) { tkBar.style.transition = "none"; tkBar.style.width = "0%"; }
+    setPill("reconnect", "Reconnect needed"); tkCap.textContent = "InteractionRequiredAuthError — silent refresh can't proceed";
+    if (reconnectChip) reconnectChip.hidden = false;
+  });
+  if (reconnectChip) reconnectChip.addEventListener("click", () => {
+    const label = reconnectChip.innerHTML; reconnectChip.textContent = "Reconnecting…";
+    setTimeout(() => { reconnectChip.innerHTML = label; startAuthDemo(); }, reduce ? 0 : 700);
+  });
+  if (stepBtn) stepBtn.addEventListener("click", () => {
+    if (tkState !== "active") return;
+    setPill("refresh", "Refreshing…");
+    setTimeout(() => { tkRefreshes++; if (tkCount) tkCount.textContent = tkRefreshes; setPill("active", "Active"); tkCap.textContent = "Renewed silently · conversation preserved"; }, reduce ? 0 : 400);
+  });
+  if (tkBar) startAuthDemo();
 </script>
 </body>
 </html>
