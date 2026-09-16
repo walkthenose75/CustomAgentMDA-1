@@ -46,8 +46,16 @@ npm run typecheck:model-driven
 npm run build:model-driven
 npm run test:model-driven      # covers computeRefreshDelayMs + loginHint plumbing
 ```
-Manual: leave the pane idle past token expiry → conversation still works (no re-auth); force an expiry
-→ Reconnect chip resumes the thread.
+Manual (four layers):
+1. **Unit** — the `test:model-driven` run above covers `computeRefreshDelayMs` + `loginHint` plumbing.
+2. **Observe** — DevTools → Network shows the silent `.../oauth2/v2.0/token` POST ~5 min before
+   `expiresOn`; the conversation continues uninterrupted.
+3. **Force a fast refresh** — temporarily raise `TOKEN_REFRESH_SKEW_MS` above the token lifetime so
+   `computeRefreshDelayMs` clamps to the 30 s floor; confirm the chat survives the refresh on the same
+   `conversationId` (store preserved). Revert the skew afterward.
+4. **Force reconnect** — make `acquireTokenSilent` throw `InteractionRequiredAuthError` (sign out in
+   another tab / clear the MSAL cache entry); the inline "Session expired — Reconnect" chip must resume
+   the same thread. Transient failures retry 3× at 60 s first.
 
 ## Out of scope
 Dynamic prompts (separate issue); any Dataverse schema change; reviving the token broker.

@@ -117,8 +117,20 @@ npm run typecheck:model-driven
 npm run build:model-driven
 npm run test:model-driven      # node --test model-driven/build.test.mjs
 ```
-Manual: open a record form in Contoso-Dev, leave the pane idle past token expiry, confirm the
-conversation keeps working (no re-auth); force an expiry to see the Reconnect chip resume the thread.
+Manual test recipe (four layers):
+1. **Unit** — `npm run test:model-driven` exercises `computeRefreshDelayMs` (skew/floor math) and the
+   `loginHint`/`ssoSilent` plumbing.
+2. **Observe the real refresh** — open a record form in Contoso-Dev, open DevTools → Network, and watch
+   for the silent `.../oauth2/v2.0/token` POST that fires ~5 min before `expiresOn`. The conversation
+   keeps working with no visible interruption.
+3. **Force a fast refresh (no waiting)** — temporarily raise `TOKEN_REFRESH_SKEW_MS` in `tokenRefresh.ts`
+   above the token lifetime (e.g. `90 * 60 * 1000`). `computeRefreshDelayMs` then clamps to the 30 s
+   floor (`MIN_TOKEN_REFRESH_DELAY_MS`), so a refresh fires within ~30 s of load; confirm the chat
+   survives it (same `conversationId`, Web Chat store preserved, no re-auth). **Revert the skew afterward.**
+4. **Force the reconnect fallback** — make `acquireTokenSilent` throw `InteractionRequiredAuthError`
+   (sign the account out in another tab, or clear its MSAL cache entry). Confirm the inline
+   "Session expired — Reconnect" chip appears and resumes the **same** conversation. Transient/network
+   failures instead retry 3× at 60 s (commit `2d6d7e9`) before the chip shows.
 
 ### 3.5 Extension backlog (if goal = extend)
 - Emit telemetry for refresh success/failure and reconnect counts (App Insights or console channel).
