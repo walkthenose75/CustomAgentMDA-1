@@ -18,6 +18,23 @@ administration Code App**. The dynamic-prompt catalog is bundled inside `agentSi
 
 ---
 
+## Contoso - Dev: one command (pinned)
+
+For the reference environment **Contoso - Dev**, the entire deploy is captured in a committed script
+so it never has to be rediscovered:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\deploy-contoso-dev.ps1   # add -Rebuild if you changed any .ts source
+```
+
+It pins the identity (**pac auth profile [5] → `admin@M365x61645866.onmicrosoft.com`**, env
+`org8599b1c0.crm.dynamics.com`, solution **AgentSidecarCore**), then exports → swaps the two copilot
+web resources → repacks → imports with publish → verifies `modifiedon`. It uses **pac's own token**;
+do **not** use `az` (your corp identity is not a member of the Contoso tenant, so `az` mints the wrong
+token). The manual routes below remain valid for other environments.
+
+---
+
 ## 0. Prerequisites
 
 | Requirement | Why | Check |
