@@ -435,6 +435,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
     <a href="#architecture">Architecture</a>
     <a href="#auth">Silent Auth</a>
     <a href="#prompts">Prompts</a>
+    <a href="#performance">Scale</a>
     <a href="#implement">Implement</a>
     <a href="#testing">Testing</a>
     <a href="#status">Status</a>
@@ -461,6 +462,10 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
   <a href="#prompts">Dynamic prompts</a>
   <a href="#prompts-pipeline">— Prompt pipeline</a>
   <a href="#prompts-code">— Key code</a>
+  <div class="toc-title">Scale</div>
+  <a href="#performance">Performance &amp; scale</a>
+  <a href="#perf-datapath">— Where data comes from</a>
+  <a href="#perf-nav">— Navigation self-heal</a>
   <div class="toc-title">Delivery</div>
   <a href="#implement">Implementation guide</a>
   <a href="#testing">Testing &amp; verification</a>
@@ -944,9 +949,90 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
   <p>The configuration record <code>75b20c59…</code> ("Incident Reports — Sales Knowledge Agent") carries <strong>6 authored prompts each</strong> for <code>contoso_incidentreport</code> and <code>contoso_incidentprocess</code> — summarize the incident, recommend next steps, find similar incidents, draft a status update, explain the process, escalation guidance, and more — all filtered by role and dispatched with record context.</p>
 </section>
 
+<!-- ================= PERFORMANCE & SCALE ================= -->
+<section id="performance">
+  <div class="sec-kicker">05 — Performance &amp; scale</div>
+  <h2>Built for a thousand users</h2>
+  <p>The sidecar loads on <em>every</em> form for <em>every</em> user, so the fair question is: does it hammer Dataverse? It does not. The suggested prompts are compiled into the web resource and served from the browser cache — <strong>zero Dataverse calls, ever</strong> — and the one small config read that used to run on every navigation is now cached per session. Here is the exact data path, and the math behind why it scales.</p>
+
+  <h3 id="perf-datapath">Where the data actually comes from</h3>
+  <div class="grid three">
+    <div class="card">
+      <div class="pill">Prompts</div>
+      <h3 style="margin-top:10px;">Bundled &amp; browser-cached</h3>
+      <p>The catalog is compiled into <span class="m">agentSidePane.js</span> and versioned with the solution. The browser downloads it once and caches it; navigating between forms renders chips from memory. <strong>0 Dataverse calls.</strong></p>
+    </div>
+    <div class="card">
+      <div class="pill">Pane config</div>
+      <h3 style="margin-top:10px;">Read once, held in memory</h3>
+      <p>The pane reads its configuration a single time when the iframe loads and keeps it in memory for the pane's lifetime. Navigation reads it <strong>0</strong> more times.</p>
+    </div>
+    <div class="card">
+      <div class="pill">Launcher config</div>
+      <h3 style="margin-top:10px;">Now cached per session</h3>
+      <p>The OnLoad launcher used to re-read config on <em>every</em> form. It now caches that read in <span class="m">sessionStorage</span> (~15-min TTL, versioned key) — collapsing it to <strong>≈1 read per browser session</strong>.</p>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Data path</th><th>Before</th><th>After</th></tr></thead>
+    <tbody>
+      <tr><td>Prompt chips</td><td>0 — bundled in the web resource</td><td>0 — bundled in the web resource</td></tr>
+      <tr><td>Pane configuration</td><td>1 read per pane load (in-memory after)</td><td>1 read per pane load (in-memory after)</td></tr>
+      <tr><td><strong>Launcher config</strong> (per form navigation)</td><td>1 Dataverse read on <em>every</em> OnLoad</td><td><strong>≈1 read per session</strong> · <span class="m">sessionStorage</span>, ~15-min TTL</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <div class="tag">The 1,000-user math</div>
+    <p>Dataverse service-protection limits are enforced <strong>per user, per web server</strong> (~6,000 requests in a 5-minute sliding window, <em>each</em>). They don't pool, so a thousand users don't stack against one budget — no single user comes close through sidecar navigation. One tiny config read, on a form that already fires many reads to render the record, was already noise; cached, it all but disappears. And going fully config-driven later (prompts in Dataverse) <em>doesn't</em> add calls — the prompts ride along in the same single config read, not N more.</p>
+  </div>
+
+  <p><strong>The cache is a pure, unit-tested freshness check</strong> (<code>configCache.ts</code>) wrapped by a <span class="m">sessionStorage</span> read/write in the launcher:</p>
+  <pre><code><span class="c">// Only a finite, non-future timestamp within the TTL is usable —</span>
+<span class="c">// this rejects expired AND clock-skewed / tampered entries.</span>
+<span class="k">export function</span> isFreshEnvelope(envelope, now, ttlMs = CONFIG_CACHE_TTL_MS) {
+    <span class="k">if</span> (!envelope || <span class="k">typeof</span> envelope !== "object") <span class="k">return</span> false;
+    <span class="k">const</span> { savedAt, configuration } = envelope;
+    <span class="k">if</span> (<span class="k">typeof</span> savedAt !== "number" || !Number.isFinite(savedAt)) <span class="k">return</span> false;
+    <span class="k">if</span> (configuration == <span class="k">null</span>) <span class="k">return</span> false;
+    <span class="k">const</span> age = now - savedAt;
+    <span class="k">return</span> age &gt;= 0 &amp;&amp; age &lt;= ttlMs;
+}</code></pre>
+
+  <h3 id="perf-nav">Per-form navigation that self-heals</h3>
+  <p>Chips must follow the user from one form to the next. The launcher writes the current form into a same-origin channel on load — but only for forms whose OnLoad handler is registered. If a bound form is missing that handler, the shared context goes stale and the chips freeze on the previous form (the exact symptom first reported). The pane now reconciles that shared context with its <em>own</em> live read of the host page and prefers whichever describes the form the user is actually on:</p>
+  <pre><code><span class="k">function</span> resolveContext(fallback, configuration) {
+    <span class="k">return</span> chooseResolvedContext(
+        readSharedContext(configuration, fallback),  <span class="c">// launcher-written · may be stale</span>
+        getCurrentContext(fallback, configuration),  <span class="c">// live host read · null if out of scope</span>
+        fallback
+    );
+}
+<span class="c">// prefer the live form whenever it points at a *different* in-scope form,</span>
+<span class="c">// so chips swap on navigation even without a per-form OnLoad handler.</span></code></pre>
+
+  <div class="callout info">
+    <div class="tag">One design rule still applies</div>
+    <p>A table must have an <strong>enabled target binding</strong> for the sidecar to assist on it — by design the pane only helps on bound tables, and code cannot invent a binding. Add the binding once (in the Agent Sidecar Administration app) and the chips follow navigation automatically; no per-form script wiring required.</p>
+  </div>
+
+  <div class="chips" style="margin-top:18px;">
+    <span class="chip ok"><span class="k">Prompts</span> <b>0 Dataverse calls</b></span>
+    <span class="chip"><span class="k">Launcher config</span> ≈1 read / session</span>
+    <span class="chip"><span class="k">Service limits</span> per-user · don't pool</span>
+    <span class="chip"><span class="k">Navigation</span> self-healing chips</span>
+  </div>
+
+  <div class="callout warn" style="margin-top:16px;">
+    <div class="tag">Ship status</div>
+    <p>Both improvements landed in <strong>PR #3</strong> (commit <code>5d49898</code>) with pure unit tests (<code>node --test</code> 17/17). They take effect in an environment once the rebuilt <code>agentSidePane.js</code> / <code>.html</code> web resources are deployed and published — the same two files in the deployment guide below.</p>
+  </div>
+</section>
+
 <!-- ================= IMPLEMENTATION ================= -->
 <section id="implement">
-  <div class="sec-kicker">05 — Delivery</div>
+  <div class="sec-kicker">06 — Delivery</div>
   <h2>How the customer implements this</h2>
   <p>Everything is built, tested, and packaged as <strong>PR #3</strong>. Because the customer started from Marty's repository, the path is <strong>review → merge → build → deploy → verify</strong> — never re-implementation. The full copy-paste runbook is <code>docs/customer-implementation-guide.md</code>; the essentials are below.</p>
 
@@ -1038,7 +1124,7 @@ pnpm build:model-driven &amp;&amp; pnpm test:model-driven</code></pre>
 
 <!-- ================= TESTING ================= -->
 <section id="testing">
-  <div class="sec-kicker">06 — Quality</div>
+  <div class="sec-kicker">07 — Quality</div>
   <h2>Testing &amp; verification</h2>
 
   <h3>Green baseline</h3>
@@ -1073,7 +1159,7 @@ npm run build:model-driven &amp;&amp; npm run test:model-driven &amp;&amp; npm r
 
 <!-- ================= STATUS ================= -->
 <section id="status">
-  <div class="sec-kicker">07 — Status</div>
+  <div class="sec-kicker">08 — Status</div>
   <h2>Deployment &amp; pull request</h2>
   <div class="grid two">
     <div class="card">
@@ -1097,7 +1183,7 @@ npm run build:model-driven &amp;&amp; npm run test:model-driven &amp;&amp; npm r
 
 <!-- ================= MAP ================= -->
 <section id="map">
-  <div class="sec-kicker">08 — Reference</div>
+  <div class="sec-kicker">09 — Reference</div>
   <h2>File &amp; commit map</h2>
   <table>
     <thead><tr><th>Area</th><th>File</th><th>Role</th></tr></thead>
