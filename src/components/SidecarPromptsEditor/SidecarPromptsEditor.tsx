@@ -13,7 +13,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { AddRegular, DeleteRegular, SaveRegular } from '@fluentui/react-icons';
+import { AddRegular, ChevronDownRegular, ChevronRightRegular, ChevronUpRegular, DeleteRegular, SaveRegular } from '@fluentui/react-icons';
 import { DataverseFieldLabel } from '@/components/DataverseFieldLabel';
 import { MAX_PROMPTS_PER_TABLE } from '@/lib/sidecar-prompts';
 import type { SidecarPromptDefinition, TargetTable } from '@/types/sidecar-admin-models';
@@ -81,7 +81,10 @@ const useStyles = makeStyles({
   muted: { color: tokens.colorNeutralForeground2 },
   table: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalS, paddingBlock: tokens.spacingVerticalM, borderTop: `1px solid ${tokens.colorNeutralStroke2}` },
   tableHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacingHorizontalM },
-  tableTitle: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXXS },
+  tableHeadButton: { display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalM, flexGrow: 1, minWidth: 0, backgroundColor: 'transparent', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' },
+  chevron: { display: 'flex', alignItems: 'center', flexShrink: 0, color: tokens.colorNeutralForeground3 },
+  toolbar: { display: 'flex', justifyContent: 'flex-end' },
+  tableTitle: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXXS, minWidth: 0 },
   prompt: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXS, padding: tokens.spacingHorizontalM, borderRadius: tokens.borderRadiusMedium, backgroundColor: tokens.colorNeutralBackground2, border: `1px solid ${tokens.colorNeutralStroke2}` },
   promptRowTop: { display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'flex-start' },
   label: { flex: '1 1 auto', display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXXS },
@@ -106,6 +109,7 @@ export function SidecarPromptsEditor({ tables, busy, onSave }: SidecarPromptsEdi
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
   const knownServerSignature = useRef(serverSignature);
+  const [openTables, setOpenTables] = useState<Record<string, boolean>>({});
 
   const draftSignature = useMemo(() => JSON.stringify(draftToPromptsByTable(draft)), [draft]);
   const isDirty = draftSignature !== serverSignature;
@@ -120,6 +124,12 @@ export function SidecarPromptsEditor({ tables, busy, onSave }: SidecarPromptsEdi
   }, [serverSignature, serverDraft, draftSignature]);
 
   const disabled = busy || saving;
+
+  const allOpen = tables.length > 0 && tables.every((table) => openTables[table.logicalName]);
+  const toggleTable = (logicalName: string) =>
+    setOpenTables((current) => ({ ...current, [logicalName]: !current[logicalName] }));
+  const toggleAll = () =>
+    setOpenTables(allOpen ? {} : Object.fromEntries(tables.map((table) => [table.logicalName, true])));
 
   const updatePrompt = (logicalName: string, key: string, patch: Partial<DraftPrompt>) => {
     setDraft((current) => ({
@@ -174,23 +184,44 @@ export function SidecarPromptsEditor({ tables, busy, onSave }: SidecarPromptsEdi
 
       {tables.length === 0 && <Text className={styles.empty}>No bound tables yet. Deploy the sidecar to author prompts.</Text>}
 
+      {tables.length > 0 && (
+        <div className={styles.toolbar}>
+          <Button appearance="subtle" size="small" icon={allOpen ? <ChevronUpRegular /> : <ChevronDownRegular />} onClick={toggleAll}>
+            {allOpen ? 'Collapse all' : 'Expand all'}
+          </Button>
+        </div>
+      )}
+
       {tables.map((table) => {
         const prompts = draft[table.logicalName] ?? [];
+        const open = !!openTables[table.logicalName];
         return (
           <div className={styles.table} key={table.logicalName}>
             <div className={styles.tableHead}>
-              <div className={styles.tableTitle}>
-                <Text weight="semibold">{table.displayName}</Text>
-                <Text size={200} className={styles.muted}>{table.logicalName}</Text>
-              </div>
+              <button
+                type="button"
+                className={styles.tableHeadButton}
+                aria-expanded={open}
+                onClick={() => toggleTable(table.logicalName)}
+              >
+                <span className={styles.chevron} aria-hidden>
+                  {open ? <ChevronDownRegular /> : <ChevronRightRegular />}
+                </span>
+                <span className={styles.tableTitle}>
+                  <Text weight="semibold">{table.displayName}</Text>
+                  <Text size={200} className={styles.muted}>{table.logicalName}</Text>
+                </span>
+              </button>
               <Badge appearance="tint" color={prompts.length ? 'brand' : 'informative'}>
                 {prompts.length} prompt{prompts.length === 1 ? '' : 's'}
               </Badge>
             </div>
 
-            {prompts.length === 0 && <Text className={styles.empty}>No prompts yet.</Text>}
+            {open && (
+              <>
+                {prompts.length === 0 && <Text className={styles.empty}>No prompts yet.</Text>}
 
-            {prompts.map((prompt) => (
+                {prompts.map((prompt) => (
               <div className={styles.prompt} key={prompt.key}>
                 <div className={styles.promptRowTop}>
                   <div className={styles.label}>
@@ -231,16 +262,18 @@ export function SidecarPromptsEditor({ tables, busy, onSave }: SidecarPromptsEdi
               </div>
             ))}
 
-            <div>
-              <Button
-                appearance="secondary"
-                icon={<AddRegular />}
-                disabled={disabled || prompts.length >= MAX_PROMPTS_PER_TABLE}
-                onClick={() => addPrompt(table.logicalName)}
-              >
-                Add prompt
-              </Button>
-            </div>
+                <div>
+                  <Button
+                    appearance="secondary"
+                    icon={<AddRegular />}
+                    disabled={disabled || prompts.length >= MAX_PROMPTS_PER_TABLE}
+                    onClick={() => addPrompt(table.logicalName)}
+                  >
+                    Add prompt
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         );
       })}
