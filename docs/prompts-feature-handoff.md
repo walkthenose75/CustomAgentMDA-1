@@ -54,11 +54,11 @@ git rev-parse --abbrev-ref HEAD # note your themed branch name; call it <YOUR_TH
 
 ## 2. Fetch the delivery branch
 
-The feature ships on branch **`feature/dynamic-prompts-only`**. Add the delivery repo as a remote and
-fetch it (the URL is provided with this handoff; substitute it for `<DELIVERY_REMOTE_URL>`):
+The feature ships on branch **`feature/dynamic-prompts-only`** in this public repository. Add it as a
+remote and fetch it (copy these commands as-is):
 
 ```powershell
-git remote add prompts <DELIVERY_REMOTE_URL>
+git remote add prompts https://github.com/walkthenose75/CustomAgentMDA-1.git
 git fetch prompts feature/dynamic-prompts-only
 ```
 
