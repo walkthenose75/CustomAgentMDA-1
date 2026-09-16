@@ -216,19 +216,105 @@ tbody tr:hover { background: var(--cp-surface-soft); }
 /* Diagrams */
 .diagram-wrap { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; padding: 18px; margin: 18px 0; box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14); }
 .diagram-wrap figcaption { font-size: 12.5px; color: var(--cp-text-soft); margin-top: 10px; text-align: center; }
-svg.diagram { width: 100%; height: auto; display: block; }
-.d-node { fill: var(--cp-surface); stroke: var(--cp-border-strong); stroke-width: 1.5; }
-.d-node-soft { fill: var(--cp-surface-soft); stroke: var(--cp-border-strong); stroke-width: 1.5; }
-.d-node-accent { fill: var(--cp-accent-soft); stroke: var(--cp-accent); stroke-width: 1.5; }
-.d-container { fill: none; stroke: var(--cp-border); stroke-width: 1.5; stroke-dasharray: 5 5; }
-.d-title { fill: var(--cp-text); font: 700 14px "Segoe UI", sans-serif; }
-.d-label { fill: var(--cp-text); font: 600 13px "Segoe UI", sans-serif; }
-.d-sub { fill: var(--cp-text-muted); font: 11.5px Consolas, monospace; }
-.d-edge { stroke: var(--cp-border-strong); stroke-width: 1.6; fill: none; }
-.d-edge-accent { stroke: var(--cp-accent); stroke-width: 2; fill: none; }
-.d-edge-danger { stroke: var(--cp-danger); stroke-width: 1.8; fill: none; stroke-dasharray: 4 4; }
-.d-elabel { fill: var(--cp-text-soft); font: 11.5px "Segoe UI", sans-serif; }
-.d-elabel-accent { fill: var(--cp-accent); font: 700 11.5px "Segoe UI", sans-serif; }
+/* ---- CSS flow-diagram system (theme-aware, replaces hand-placed SVG) ---- */
+.dgm { --dgm-gap: 16px; }
+.dgm .m { font-family: Consolas, monospace; }
+.dgm-host .hh svg { width: 16px; height: 16px; flex: none; }
+.dgm-ribbon svg, .dgm-note svg { flex: none; }
+svg.dgm-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.dgm-node { position: relative; background: var(--cp-surface); border: 1px solid var(--cp-border-strong); border-radius: 12px; padding: 13px 15px; box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 8px 20px rgba(0,0,0,0.05); }
+.dgm-node .t { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 13.5px; color: var(--cp-text); line-height: 1.25; }
+.dgm-node .s { margin-top: 7px; font-size: 12px; color: var(--cp-text-soft); line-height: 1.5; }
+.dgm-node .s .m { font-family: Consolas, monospace; font-size: 11px; color: var(--cp-text-muted); }
+.dgm-node.accent { border-color: var(--cp-accent); background: var(--cp-accent-soft); }
+.dgm-node.accent .t { color: var(--cp-accent); }
+.dgm-node.soft { background: var(--cp-surface-soft); }
+.dgm-node.danger { border-color: var(--cp-danger); }
+.dgm-node.danger .t { color: var(--cp-danger); }
+
+/* icon chip */
+.dgm-ic { width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; flex: none; background: var(--cp-accent); color: var(--cp-accent-fg); box-shadow: 0 2px 6px var(--cp-accent-soft); }
+.dgm-ic svg { width: 18px; height: 18px; display: block; }
+.dgm-node.soft .dgm-ic, .dgm-ic.neutral { background: var(--cp-text-soft); }
+.dgm-ic.danger { background: var(--cp-danger); }
+.dgm-ic.warn { background: var(--cp-warning); }
+
+/* dashed host container */
+.dgm-host { border: 1.5px dashed var(--cp-border-strong); border-radius: 14px; padding: 14px; background: transparent; }
+.dgm-host > .hh { display: flex; align-items: center; gap: 9px; margin: 2px 2px 13px; font-weight: 700; font-size: 12.5px; color: var(--cp-text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.dgm-host > .hh .badge { text-transform: none; letter-spacing: 0; font-weight: 600; font-size: 10.5px; color: var(--cp-text-soft); background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 999px; padding: 2px 9px; }
+
+/* connector line + arrowhead */
+.dgm-arw { position: relative; align-self: center; flex: none; background: var(--cp-border-strong); }
+.dgm-arw.h { width: 40px; height: 2.5px; }
+.dgm-arw.h::after { content:""; position: absolute; right: -1px; top: 50%; transform: translateY(-50%); border-left: 9px solid var(--cp-border-strong); border-top: 6px solid transparent; border-bottom: 6px solid transparent; }
+.dgm-arw.v { width: 2.5px; height: 34px; margin: 0 auto; }
+.dgm-arw.v::after { content:""; position: absolute; bottom: -1px; left: 50%; transform: translateX(-50%); border-top: 9px solid var(--cp-border-strong); border-left: 6px solid transparent; border-right: 6px solid transparent; }
+.dgm-arw.accent { background: var(--cp-accent); }
+.dgm-arw.accent.h::after { border-left-color: var(--cp-accent); }
+.dgm-arw.accent.v::after { border-top-color: var(--cp-accent); }
+.dgm-arw.danger { background: var(--cp-danger); }
+.dgm-arw.danger.h::after { border-left-color: var(--cp-danger); }
+.dgm-arw.danger.v::after { border-top-color: var(--cp-danger); }
+
+/* labeled connector pill (long-label edges) */
+.dgm-link { display: flex; align-items: center; gap: 10px; padding: 10px 15px; border-radius: 999px; background: var(--cp-surface-soft); border: 1px solid var(--cp-border-strong); font-size: 11.5px; font-weight: 700; color: var(--cp-text-muted); }
+.dgm-link .arw { margin-left: auto; width: 24px; height: 2.5px; background: currentColor; position: relative; flex: none; }
+.dgm-link .arw::after { content:""; position:absolute; right:-1px; top:50%; transform: translateY(-50%); border-left: 8px solid currentColor; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.dgm-link.accent { background: var(--cp-accent-soft); border-color: var(--cp-accent); color: var(--cp-accent); }
+
+/* generic flex rows/cols */
+.dgm-row { display: flex; align-items: center; gap: var(--dgm-gap); }
+.dgm-col { display: flex; flex-direction: column; gap: var(--dgm-gap); }
+.dgm-grow { flex: 1 1 0; min-width: 0; }
+
+/* timeline */
+.dgm-timeline { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); margin: 6px 0 2px; }
+.dgm-timeline::before { content:""; position: absolute; left: 12.5%; right: 12.5%; top: 18px; height: 3px; background: var(--cp-accent); opacity: .3; border-radius: 3px; }
+.dgm-step { position: relative; text-align: center; padding: 0 10px; }
+.dgm-step .dot { width: 38px; height: 38px; border-radius: 50%; background: var(--cp-accent); color: var(--cp-accent-fg); display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; box-shadow: 0 0 0 6px var(--cp-accent-soft); position: relative; z-index: 1; margin-bottom: 12px; }
+.dgm-step .st { font-weight: 700; font-size: 13px; color: var(--cp-text); }
+.dgm-step .ss { font-size: 11.5px; color: var(--cp-text-soft); margin-top: 4px; line-height: 1.5; }
+.dgm-step .ss .m { font-family: Consolas, monospace; font-size: 11px; color: var(--cp-text-muted); }
+
+/* ribbon / note */
+.dgm-ribbon { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 0 auto 18px; padding: 9px 18px; width: fit-content; border-radius: 999px; background: var(--cp-accent-soft); color: var(--cp-accent); border: 1px dashed var(--cp-accent); font-size: 12px; font-weight: 700; }
+.dgm-ribbon svg { width: 15px; height: 15px; }
+.dgm-note { display: flex; align-items: center; gap: 9px; justify-content: center; margin-top: 16px; padding: 10px 16px; border-radius: 10px; background: var(--cp-surface-soft); border: 1px dashed var(--cp-danger); color: var(--cp-danger); font-size: 11.5px; font-weight: 600; }
+
+/* state legend */
+.dgm-states { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.dgm-state { border: 1px solid var(--cp-border-strong); border-left-width: 4px; border-radius: 10px; padding: 11px 13px; background: var(--cp-surface); }
+.dgm-state .n { font-weight: 800; font-size: 12px; letter-spacing: .03em; }
+.dgm-state .d { font-size: 11.5px; color: var(--cp-text-soft); margin-top: 3px; }
+.dgm-state.s-active { border-left-color: var(--cp-accent); } .dgm-state.s-active .n { color: var(--cp-accent); }
+.dgm-state.s-refresh { border-left-color: var(--cp-text-soft); }
+.dgm-state.s-retry { border-left-color: var(--cp-warning); } .dgm-state.s-retry .n { color: var(--cp-warning); }
+.dgm-state.s-reconnect { border-left-color: var(--cp-danger); } .dgm-state.s-reconnect .n { color: var(--cp-danger); }
+
+/* transitions */
+.dgm-trans { display: flex; flex-direction: column; gap: 11px; margin-top: 16px; }
+.dgm-tr { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
+.dgm-pill { font-weight: 800; font-size: 11px; letter-spacing: .03em; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--cp-border-strong); color: var(--cp-text-muted); background: var(--cp-surface-soft); white-space: nowrap; }
+.dgm-pill.active { color: var(--cp-accent); border-color: var(--cp-accent); background: var(--cp-accent-soft); }
+.dgm-pill.retry { color: var(--cp-warning); border-color: var(--cp-warning); }
+.dgm-pill.reconnect { color: var(--cp-danger); border-color: var(--cp-danger); }
+.dgm-tr .lab { font-size: 11.5px; font-weight: 600; color: var(--cp-text-soft); }
+.dgm-tr .lab.accent { color: var(--cp-accent); }
+.dgm-tr .lab.danger { color: var(--cp-danger); }
+.dgm-tr .a { position: relative; width: 30px; height: 2.5px; background: var(--cp-border-strong); flex: none; }
+.dgm-tr .a::after { content:""; position:absolute; right:-1px; top:50%; transform: translateY(-50%); border-left: 8px solid var(--cp-border-strong); border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.dgm-tr .a.accent { background: var(--cp-accent); } .dgm-tr .a.accent::after { border-left-color: var(--cp-accent); }
+.dgm-tr .a.danger { background: var(--cp-danger); } .dgm-tr .a.danger::after { border-left-color: var(--cp-danger); }
+
+@media (max-width: 760px) {
+  .dgm-row { flex-direction: column; align-items: stretch; }
+  .dgm-arw.h { width: 2.5px; height: 28px; margin: 0 auto; }
+  .dgm-arw.h::after { right: 50%; top: auto; bottom: -1px; transform: translateX(50%); border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 9px solid var(--cp-border-strong); border-bottom: 0; }
+  .dgm-arw.h.accent::after { border-top-color: var(--cp-accent); }
+  .dgm-timeline, .dgm-states { grid-template-columns: 1fr 1fr; gap: 18px 12px; }
+  .dgm-timeline::before { display: none; }
+}
 
 /* Footer */
 footer { border-top: 1px solid var(--cp-border); padding: 34px 0 60px; color: var(--cp-text-soft); font-size: 13px; }
@@ -596,66 +682,66 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
 </section>
 
 <!-- ARCHITECTURE -->
+<svg class="dgm-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>
+<g id="ic-form" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></g>
+<g id="ic-chat" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h3v4l5-4h8a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1z"/></g>
+<g id="ic-shield" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/></g>
+<g id="ic-bot" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="11" rx="2.5"/><line x1="12" y1="4" x2="12" y2="8"/><circle cx="12" cy="3.4" r="1.2"/><circle cx="9" cy="13" r="1.1"/><circle cx="15" cy="13" r="1.1"/><line x1="9.5" y1="16.4" x2="14.5" y2="16.4"/></g>
+<g id="ic-db" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7" ry="2.7"/><path d="M5 5.5v6c0 1.5 3.1 2.7 7 2.7s7-1.2 7-2.7v-6"/><path d="M5 11.5v6c0 1.5 3.1 2.7 7 2.7s7-1.2 7-2.7v-6"/></g>
+<g id="ic-refresh" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></g>
+<g id="ic-alert" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l9 16H3z"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.2"/></g>
+<g id="ic-book" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H19v16H7.5A2.5 2.5 0 0 0 5 20.5z"/><path d="M5 20.5A2.5 2.5 0 0 1 7.5 18H19v4H7.5A2.5 2.5 0 0 1 5 20.5z"/></g>
+<g id="ic-code" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5c-2 0-2 2-2 3.5S6 12 4 12c2 0 2 2 2 3.5S6 19 8 19"/><path d="M16 5c2 0 2 2 2 3.5S18 12 20 12c-2 0-2 2-2 3.5S18 19 16 19"/></g>
+<g id="ic-merge" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="12" r="2"/><path d="M8 5.4C13 6 15.8 8.6 16.1 11.2"/><path d="M8 18.6C13 18 15.8 15.4 16.1 12.8"/></g>
+<g id="ic-filter" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6.2 7.5V19l-3.6-1.8v-4.7z"/></g>
+<g id="ic-spark" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></g>
+<g id="ic-send" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L3 10.5l7 2.5 2.5 7z"/><path d="M21 3l-11 10"/></g>
+</defs></svg>
+
 <section id="architecture">
   <div class="sec-kicker">02 — System architecture</div>
   <h2>Where the sidecar lives</h2>
   <p>The pane is a web resource (<code>agentSidePane.js</code>) hosted in an iframe on the model-driven form. It signs the user in with <strong>MSAL.js</strong> against <strong>Microsoft Entra ID</strong>, then talks to the <strong>Copilot Studio</strong> agent through the <code>CopilotStudioClient</code> / DirectLine connection rendered by <strong>Web Chat</strong>. Per-environment behaviour (which agent, which tables, which prompts) is read at runtime from a <strong>Dataverse</strong> configuration record.</p>
 
   <figure class="diagram-wrap">
-    <svg class="diagram" viewBox="0 0 940 430" role="img" aria-label="System topology diagram">
-      <defs>
-        <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-          <path d="M0,0 L8,3 L0,6 Z" fill="var(--cp-border-strong)"></path>
-        </marker>
-        <marker id="ah-a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-          <path d="M0,0 L8,3 L0,6 Z" fill="var(--cp-accent)"></path>
-        </marker>
-      </defs>
-
-      <!-- Dynamics container -->
-      <rect class="d-container" x="24" y="40" width="360" height="360" rx="16"></rect>
-      <text class="d-title" x="44" y="66">Microsoft Dynamics 365</text>
-      <text class="d-sub" x="44" y="84">Model-driven app (browser)</text>
-
-      <rect class="d-node" x="48" y="104" width="312" height="70" rx="10"></rect>
-      <text class="d-label" x="204" y="134" text-anchor="middle">Model-driven form</text>
-      <text class="d-sub" x="204" y="153" text-anchor="middle">record context · entityName · roles</text>
-
-      <rect class="d-node-accent" x="48" y="206" width="312" height="150" rx="10"></rect>
-      <text class="d-label" x="204" y="234" text-anchor="middle">Agent side pane · iframe</text>
-      <text class="d-sub" x="204" y="253" text-anchor="middle">agentSidePane.js</text>
-      <line x1="72" y1="268" x2="336" y2="268" class="d-edge" opacity="0.4"></line>
-      <text class="d-sub" x="204" y="290" text-anchor="middle">MSAL.js · token lifecycle</text>
-      <text class="d-sub" x="204" y="312" text-anchor="middle">Web Chat · CopilotStudioClient</text>
-      <text class="d-sub" x="204" y="334" text-anchor="middle">prompt chips · context envelope</text>
-
-      <!-- Entra -->
-      <rect class="d-node-soft" x="470" y="60" width="200" height="86" rx="10"></rect>
-      <text class="d-label" x="570" y="94" text-anchor="middle">Microsoft Entra ID</text>
-      <text class="d-sub" x="570" y="114" text-anchor="middle">delegated token issuer</text>
-      <text class="d-sub" x="570" y="132" text-anchor="middle">rotating refresh token</text>
-
-      <!-- Copilot Studio agent -->
-      <rect class="d-node-accent" x="726" y="196" width="190" height="96" rx="10"></rect>
-      <text class="d-label" x="821" y="230" text-anchor="middle">Copilot Studio</text>
-      <text class="d-label" x="821" y="250" text-anchor="middle">agent</text>
-      <text class="d-sub" x="821" y="272" text-anchor="middle">answers as the user</text>
-
-      <!-- Dataverse config -->
-      <rect class="d-node-soft" x="470" y="326" width="290" height="74" rx="10"></rect>
-      <text class="d-label" x="615" y="356" text-anchor="middle">Dataverse — configuration</text>
-      <text class="d-sub" x="615" y="376" text-anchor="middle">maftagsc_sidecarconfiguration (bindings + prompts)</text>
-
-      <!-- edges -->
-      <path class="d-edge-accent" d="M300,206 C300,150 420,150 470,120" marker-end="url(#ah-a)"></path>
-      <text class="d-elabel-accent" x="330" y="150">acquireTokenSilent (CORS)</text>
-
-      <path class="d-edge-accent" d="M360,262 C520,262 600,244 726,244" marker-end="url(#ah-a)"></path>
-      <text class="d-elabel-accent" x="470" y="236">DirectLine · delegated</text>
-
-      <path class="d-edge" d="M300,356 C360,372 420,364 470,362" marker-end="url(#ah)"></path>
-      <text class="d-elabel" x="332" y="392">read config at runtime</text>
-    </svg>
+    <div class="dgm dgm-row" style="align-items:stretch;gap:22px;flex-wrap:wrap;">
+      <div class="dgm-host dgm-grow" style="display:flex;flex-direction:column;justify-content:center;min-width:250px;">
+        <div class="hh"><svg viewBox="0 0 24 24"><use href="#ic-form"></use></svg>Microsoft Dynamics 365<span class="badge">model-driven · browser</span></div>
+        <div class="dgm-col" style="gap:12px;">
+          <div class="dgm-node">
+            <div class="t"><span class="dgm-ic neutral"><svg viewBox="0 0 24 24"><use href="#ic-form"></use></svg></span>Model-driven form</div>
+            <div class="s">record context · <span class="m">entityName</span> · roles</div>
+          </div>
+          <div class="dgm-node accent">
+            <div class="t"><span class="dgm-ic"><svg viewBox="0 0 24 24"><use href="#ic-chat"></use></svg></span>Agent side pane · iframe</div>
+            <div class="s"><span class="m">agentSidePane.js</span><br>MSAL.js · token lifecycle<br>Web Chat · CopilotStudioClient<br>prompt chips · context envelope</div>
+          </div>
+        </div>
+      </div>
+      <div class="dgm-col dgm-grow" style="justify-content:center;gap:16px;min-width:290px;">
+        <div class="dgm-row" style="gap:14px;">
+          <div class="dgm-link accent" style="flex:1 1 0;">acquireTokenSilent · CORS<span class="arw"></span></div>
+          <div class="dgm-node soft" style="flex:1 1 0;">
+            <div class="t"><span class="dgm-ic"><svg viewBox="0 0 24 24"><use href="#ic-shield"></use></svg></span>Microsoft Entra ID</div>
+            <div class="s">delegated token issuer · rotating refresh token</div>
+          </div>
+        </div>
+        <div class="dgm-row" style="gap:14px;">
+          <div class="dgm-link accent" style="flex:1 1 0;">DirectLine · delegated<span class="arw"></span></div>
+          <div class="dgm-node accent" style="flex:1 1 0;">
+            <div class="t"><span class="dgm-ic"><svg viewBox="0 0 24 24"><use href="#ic-bot"></use></svg></span>Copilot Studio agent</div>
+            <div class="s">answers as the signed-in user</div>
+          </div>
+        </div>
+        <div class="dgm-row" style="gap:14px;">
+          <div class="dgm-link" style="flex:1 1 0;">read config at runtime<span class="arw"></span></div>
+          <div class="dgm-node soft" style="flex:1 1 0;">
+            <div class="t"><span class="dgm-ic"><svg viewBox="0 0 24 24"><use href="#ic-db"></use></svg></span>Dataverse — configuration</div>
+            <div class="s"><span class="m">maftagsc_sidecarconfiguration</span> · bindings + prompts</div>
+          </div>
+        </div>
+      </div>
+    </div>
     <figcaption>Topology — the pane authenticates against Entra, connects to the Copilot Studio agent with the delegated token, and reads its per-environment behaviour from a Dataverse record.</figcaption>
   </figure>
 
@@ -695,40 +781,16 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
   <p>On every successful token acquisition the pane arms a one-shot timer for <code>expiresOn − 5&nbsp;min</code> (clamped to a 30&nbsp;s floor). When it fires, the pane silently re-acquires the token, ends the old DirectLine connection, and re-renders Web Chat <strong>reusing the existing store</strong> — so the transcript and <code>conversationId</code> survive the swap — then schedules the next refresh against the new expiry.</p>
 
   <figure class="diagram-wrap">
-    <svg class="diagram" viewBox="0 0 940 250" role="img" aria-label="Token refresh timeline">
-      <defs>
-        <marker id="ah2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-          <path d="M0,0 L8,3 L0,6 Z" fill="var(--cp-accent)"></path>
-        </marker>
-      </defs>
-      <line x1="40" y1="120" x2="900" y2="120" class="d-edge"></line>
-      <!-- t0 -->
-      <circle cx="90" cy="120" r="7" fill="var(--cp-accent)"></circle>
-      <text class="d-label" x="90" y="96" text-anchor="middle">Sign in</text>
-      <text class="d-sub" x="90" y="150" text-anchor="middle">token + expiresOn</text>
-      <text class="d-sub" x="90" y="166" text-anchor="middle">captured</text>
-      <!-- t1 -->
-      <circle cx="360" cy="120" r="7" fill="var(--cp-accent)"></circle>
-      <text class="d-label" x="360" y="96" text-anchor="middle">T − 5 min</text>
-      <text class="d-sub" x="360" y="150" text-anchor="middle">scheduleTokenRefresh</text>
-      <text class="d-sub" x="360" y="166" text-anchor="middle">timer fires</text>
-      <!-- t2 -->
-      <circle cx="600" cy="120" r="7" fill="var(--cp-accent)"></circle>
-      <text class="d-label" x="600" y="96" text-anchor="middle">Silent renew</text>
-      <text class="d-sub" x="600" y="150" text-anchor="middle">acquireTokenSilent</text>
-      <text class="d-sub" x="600" y="166" text-anchor="middle">CORS POST</text>
-      <!-- t3 -->
-      <circle cx="820" cy="120" r="7" fill="var(--cp-accent)"></circle>
-      <text class="d-label" x="820" y="96" text-anchor="middle">Hot-swap</text>
-      <text class="d-sub" x="820" y="150" text-anchor="middle">rebuild connection,</text>
-      <text class="d-sub" x="820" y="166" text-anchor="middle">keep store</text>
-      <!-- loop -->
-      <path class="d-edge-accent" d="M820,104 C820,40 360,40 360,104" marker-end="url(#ah2)"></path>
-      <text class="d-elabel-accent" x="590" y="34" text-anchor="middle">re-arm against new expiry — indefinitely</text>
-      <!-- expiry marker -->
-      <line x1="655" y1="80" x2="655" y2="160" class="d-edge-danger"></line>
-      <text class="d-elabel" x="655" y="196" text-anchor="middle" style="fill:var(--cp-danger);">old token would expire here (never reached live)</text>
-    </svg>
+    <div class="dgm">
+      <div class="dgm-ribbon"><svg viewBox="0 0 24 24" style="width:15px;height:15px;"><use href="#ic-refresh"></use></svg>Re-arms against the new expiry — indefinitely</div>
+      <div class="dgm-timeline">
+        <div class="dgm-step"><span class="dot">1</span><div class="st">Sign in</div><div class="ss">token + <span class="m">expiresOn</span> captured</div></div>
+        <div class="dgm-step"><span class="dot">2</span><div class="st">T − 5 min</div><div class="ss"><span class="m">scheduleTokenRefresh</span> timer fires</div></div>
+        <div class="dgm-step"><span class="dot">3</span><div class="st">Silent renew</div><div class="ss"><span class="m">acquireTokenSilent</span> · CORS POST</div></div>
+        <div class="dgm-step"><span class="dot">4</span><div class="st">Hot-swap</div><div class="ss">rebuild connection, keep store</div></div>
+      </div>
+      <div class="dgm-note"><svg viewBox="0 0 24 24" style="width:15px;height:15px;"><use href="#ic-alert"></use></svg>The old token would expire mid-session — but the 5-minute skew keeps a fresh token in hand first, so that point is never reached live.</div>
+    </div>
     <figcaption>The 5-minute skew guarantees a valid token is always in hand before the previous one could be presented to the agent.</figcaption>
   </figure>
 
@@ -736,51 +798,23 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
   <p>Token acquisition tries the quietest path first and only escalates when it must. Background refreshes distinguish a <em>transient</em> failure (retry, the current token is still valid through the skew window) from a genuine <em>interaction-required</em> failure (surface a one-click Reconnect).</p>
 
   <figure class="diagram-wrap">
-    <svg class="diagram" viewBox="0 0 940 340" role="img" aria-label="Auth state machine">
-      <defs>
-        <marker id="ah3" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="var(--cp-border-strong)"></path></marker>
-        <marker id="ah3a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="var(--cp-accent)"></path></marker>
-        <marker id="ah3d" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="var(--cp-danger)"></path></marker>
-      </defs>
-
-      <rect class="d-node-accent" x="60" y="40" width="180" height="70" rx="10"></rect>
-      <text class="d-label" x="150" y="70" text-anchor="middle">ACTIVE</text>
-      <text class="d-sub" x="150" y="90" text-anchor="middle">conversation live</text>
-
-      <rect class="d-node" x="380" y="40" width="180" height="70" rx="10"></rect>
-      <text class="d-label" x="470" y="70" text-anchor="middle">REFRESHING</text>
-      <text class="d-sub" x="470" y="90" text-anchor="middle">acquireTokenSilent</text>
-
-      <rect class="d-node" x="380" y="200" width="180" height="70" rx="10"></rect>
-      <text class="d-label" x="470" y="230" text-anchor="middle">RETRYING</text>
-      <text class="d-sub" x="470" y="250" text-anchor="middle">≤ 3× @ 60 s</text>
-
-      <rect class="d-node-soft" x="700" y="200" width="200" height="70" rx="10"></rect>
-      <text class="d-label" x="800" y="230" text-anchor="middle">RECONNECT NEEDED</text>
-      <text class="d-sub" x="800" y="250" text-anchor="middle">inline chip shown</text>
-
-      <!-- ACTIVE -> REFRESHING -->
-      <path class="d-edge" d="M240,75 L378,75" marker-end="url(#ah3)"></path>
-      <text class="d-elabel" x="309" y="66" text-anchor="middle">T−5min</text>
-      <!-- REFRESHING -> ACTIVE (success) -->
-      <path class="d-edge-accent" d="M380,58 C300,20 220,24 165,38" marker-end="url(#ah3a)"></path>
-      <text class="d-elabel-accent" x="290" y="20" text-anchor="middle">silent ok → rebuild, keep store</text>
-      <!-- REFRESHING -> RETRYING (transient) -->
-      <path class="d-edge" d="M470,110 L470,198" marker-end="url(#ah3)"></path>
-      <text class="d-elabel" x="484" y="158">transient</text>
-      <!-- RETRYING -> ACTIVE -->
-      <path class="d-edge-accent" d="M380,225 C210,225 150,160 150,112" marker-end="url(#ah3a)"></path>
-      <text class="d-elabel-accent" x="210" y="180" text-anchor="middle">retry ok</text>
-      <!-- RETRYING -> RECONNECT (3 fails) -->
-      <path class="d-edge-danger" d="M560,235 L698,235" marker-end="url(#ah3d)"></path>
-      <text class="d-elabel" x="629" y="226" text-anchor="middle" style="fill:var(--cp-danger);">3 fails</text>
-      <!-- REFRESHING -> RECONNECT (interaction required) -->
-      <path class="d-edge-danger" d="M560,90 C660,110 800,150 800,198" marker-end="url(#ah3d)"></path>
-      <text class="d-elabel" x="690" y="120" style="fill:var(--cp-danger);">InteractionRequired</text>
-      <!-- RECONNECT -> ACTIVE (user click) -->
-      <path class="d-edge-accent" d="M800,200 C800,300 150,320 150,112" marker-end="url(#ah3a)"></path>
-      <text class="d-elabel-accent" x="470" y="316" text-anchor="middle">user clicks Reconnect (loginHint → usually zero prompts) · resumes same conversation</text>
-    </svg>
+    <div class="dgm">
+      <div class="dgm-states">
+        <div class="dgm-state s-active"><div class="n">ACTIVE</div><div class="d">conversation live</div></div>
+        <div class="dgm-state s-refresh"><div class="n">REFRESHING</div><div class="d"><span class="m">acquireTokenSilent</span></div></div>
+        <div class="dgm-state s-retry"><div class="n">RETRYING</div><div class="d">≤ 3× @ 60 s</div></div>
+        <div class="dgm-state s-reconnect"><div class="n">RECONNECT NEEDED</div><div class="d">inline chip shown</div></div>
+      </div>
+      <div class="dgm-trans">
+        <div class="dgm-tr"><span class="dgm-pill active">ACTIVE</span><span class="lab">T − 5 min</span><span class="a"></span><span class="dgm-pill">REFRESHING</span></div>
+        <div class="dgm-tr"><span class="dgm-pill">REFRESHING</span><span class="lab accent">silent ok → rebuild, keep store</span><span class="a accent"></span><span class="dgm-pill active">ACTIVE</span></div>
+        <div class="dgm-tr"><span class="dgm-pill">REFRESHING</span><span class="lab">transient failure</span><span class="a"></span><span class="dgm-pill retry">RETRYING</span></div>
+        <div class="dgm-tr"><span class="dgm-pill retry">RETRYING</span><span class="lab accent">retry ok</span><span class="a accent"></span><span class="dgm-pill active">ACTIVE</span></div>
+        <div class="dgm-tr"><span class="dgm-pill retry">RETRYING</span><span class="lab danger">3 fails</span><span class="a danger"></span><span class="dgm-pill reconnect">RECONNECT NEEDED</span></div>
+        <div class="dgm-tr"><span class="dgm-pill">REFRESHING</span><span class="lab danger">InteractionRequired</span><span class="a danger"></span><span class="dgm-pill reconnect">RECONNECT NEEDED</span></div>
+        <div class="dgm-tr"><span class="dgm-pill reconnect">RECONNECT NEEDED</span><span class="lab accent">user clicks Reconnect · loginHint → usually zero prompts · resumes same conversation</span><span class="a accent"></span><span class="dgm-pill active">ACTIVE</span></div>
+      </div>
+    </div>
     <figcaption>State machine — transient failures retry silently behind the still-valid token; only a genuine interaction-required error downgrades to the visible one-click Reconnect.</figcaption>
   </figure>
 
@@ -830,54 +864,49 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
   <p>Prompts come from two sources that merge deterministically. A <strong>bundled catalog</strong> (<code>promptCatalog.ts</code>) compiled into the pane guarantees prompts appear in every deployment with zero configuration. An optional <strong>authored JSON blob</strong> on the config record (edited from the admin app) overrides the catalog per-table. <code>applyPromptCatalog()</code> only backfills bindings that don't already declare their own prompts — so <strong>authored prompts always win</strong>.</p>
 
   <figure class="diagram-wrap">
-    <svg class="diagram" viewBox="0 0 940 330" role="img" aria-label="Prompt pipeline diagram">
-      <defs>
-        <marker id="ah4" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="var(--cp-border-strong)"></path></marker>
-        <marker id="ah4a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="var(--cp-accent)"></path></marker>
-      </defs>
-
-      <!-- sources -->
-      <rect class="d-node-soft" x="30" y="40" width="220" height="76" rx="10"></rect>
-      <text class="d-label" x="140" y="70" text-anchor="middle">Bundled catalog</text>
-      <text class="d-sub" x="140" y="90" text-anchor="middle">promptCatalog.ts (defaults)</text>
-      <text class="d-sub" x="140" y="106" text-anchor="middle">ships in every deployment</text>
-
-      <rect class="d-node-accent" x="30" y="150" width="220" height="76" rx="10"></rect>
-      <text class="d-label" x="140" y="180" text-anchor="middle">Authored JSON</text>
-      <text class="d-sub" x="140" y="200" text-anchor="middle">maftagsc_prompts column</text>
-      <text class="d-sub" x="140" y="216" text-anchor="middle">edited in admin app</text>
-
-      <!-- merge -->
-      <rect class="d-node" x="330" y="94" width="210" height="80" rx="10"></rect>
-      <text class="d-label" x="435" y="126" text-anchor="middle">applyPromptCatalog()</text>
-      <text class="d-sub" x="435" y="146" text-anchor="middle">authored prompts win;</text>
-      <text class="d-sub" x="435" y="162" text-anchor="middle">catalog fills the gaps</text>
-
-      <!-- role filter -->
-      <rect class="d-node" x="620" y="94" width="200" height="80" rx="10"></rect>
-      <text class="d-label" x="720" y="126" text-anchor="middle">Role filter</text>
-      <text class="d-sub" x="720" y="146" text-anchor="middle">CurrentUserRoles</text>
-      <text class="d-sub" x="720" y="162" text-anchor="middle">hide out-of-role chips</text>
-
-      <!-- chips -->
-      <rect class="d-node-accent" x="620" y="236" width="200" height="66" rx="10"></rect>
-      <text class="d-label" x="720" y="266" text-anchor="middle">Prompt chips</text>
-      <text class="d-sub" x="720" y="286" text-anchor="middle">rendered above input</text>
-
-      <!-- agent -->
-      <rect class="d-node" x="330" y="236" width="210" height="66" rx="10"></rect>
-      <text class="d-label" x="435" y="266" text-anchor="middle">postActivity + envelope</text>
-      <text class="d-sub" x="435" y="286" text-anchor="middle">record/form context attached</text>
-
-      <!-- edges -->
-      <path class="d-edge" d="M250,78 C290,78 300,110 328,120" marker-end="url(#ah4)"></path>
-      <path class="d-edge-accent" d="M250,188 C290,188 300,158 328,148" marker-end="url(#ah4a)"></path>
-      <path class="d-edge" d="M540,134 L618,134" marker-end="url(#ah4)"></path>
-      <path class="d-edge" d="M720,174 L720,234" marker-end="url(#ah4)"></path>
-      <text class="d-elabel" x="734" y="210">click</text>
-      <path class="d-edge-accent" d="M620,270 L542,270" marker-end="url(#ah4a)"></path>
-      <text class="d-elabel-accent" x="800" y="30">merge → filter → render → send</text>
-    </svg>
+    <div class="dgm" style="max-width:600px;margin:0 auto;">
+      <div class="dgm-row" style="gap:14px;align-items:stretch;">
+        <div class="dgm-node soft" style="flex:1 1 0;">
+          <div class="t"><span class="dgm-ic"><svg viewBox="0 0 24 24"><use href="#ic-book"></use></svg></span>Bundled catalog</div>
+          <div class="s"><span class="m">promptCatalog.ts</span> · ships in every deployment</div>
+        </div>
+        <div class="dgm-node accent" style="flex:1 1 0;">
+          <div class="t"><span class="dgm-ic"><svg viewBox="0 0 24 24"><use href="#ic-code"></use></svg></span>Authored JSON</div>
+          <div class="s"><span class="m">maftagsc_prompts</span> · edited in admin app</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;margin:10px 0;">
+        <span class="dgm-elabel accent">authored wins · catalog fills the gaps</span>
+        <span class="dgm-arw v"></span>
+      </div>
+      <div class="dgm-node">
+        <div class="t"><span class="dgm-ic neutral"><svg viewBox="0 0 24 24"><use href="#ic-merge"></use></svg></span>applyPromptCatalog()</div>
+        <div class="s">deterministic merge — never mutates input</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;margin:10px 0;">
+        <span class="dgm-elabel">filter by role</span>
+        <span class="dgm-arw v"></span>
+      </div>
+      <div class="dgm-node">
+        <div class="t"><span class="dgm-ic neutral"><svg viewBox="0 0 24 24"><use href="#ic-filter"></use></svg></span>Role filter</div>
+        <div class="s"><span class="m">CurrentUserRoles</span> · hides out-of-role chips</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;margin:10px 0;">
+        <span class="dgm-arw v accent"></span>
+      </div>
+      <div class="dgm-node accent">
+        <div class="t"><span class="dgm-ic"><svg viewBox="0 0 24 24"><use href="#ic-spark"></use></svg></span>Prompt chips</div>
+        <div class="s">rendered above the Web Chat input</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;margin:10px 0;">
+        <span class="dgm-elabel accent">click a chip</span>
+        <span class="dgm-arw v accent"></span>
+      </div>
+      <div class="dgm-node">
+        <div class="t"><span class="dgm-ic"><svg viewBox="0 0 24 24"><use href="#ic-send"></use></svg></span>postActivity + envelope</div>
+        <div class="s">same wrapped <span class="m">postActivity</span> as free-text · record / form context attached</div>
+      </div>
+    </div>
     <figcaption>Two sources merge (authored beats bundled), roles filter the result, chips render, and a click dispatches the prompt with full context — the same envelope free-text uses.</figcaption>
   </figure>
 
