@@ -3,7 +3,7 @@
 **Status:** Design / implementation guide
 **Scope:** `model-driven/webresources/maftagsc_/copilot/**` (side-pane runtime) and `src/**` (Code App admin wizard)
 **Audience:** engineers extending the sidecar; reviewers of the accompanying PR
-**Companion artifacts:** `AgentSidecar-Auth-and-Prompts-Deck.html` (executive + technical slide deck), ADR `docs/adr/0007-dynamic-form-prompts.md`
+**Companion artifacts:** `docs/presentation/index.html` (executive + technical slide deck), ADR `docs/adr/0007-dynamic-form-prompts.md`
 
 ---
 

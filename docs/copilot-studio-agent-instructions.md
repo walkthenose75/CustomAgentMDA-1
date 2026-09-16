@@ -2,6 +2,12 @@
 
 The **Sales Knowledge Agent for Sidecar** is a Microsoft Copilot Studio agent surfaced inside the **Agent Sidecar** side pane on Dynamics 365 model-driven forms. It answers questions about customer incident data by using a **Dataverse MCP server** to discover table metadata and retrieve records that the signed-in user is permitted to access. The side pane sends the current form record context with every message, including the table logical name (`entityName`) and current record id, so the agent should use that context to scope answers to “this record” whenever available.
 
+> **Confirm the table logical names first.** This agent targets `contoso_incidentreport` and
+> `contoso_incidentprocess` — the same logical names the sidecar's bundled prompt catalog
+> (`promptCatalog.ts`) uses. If your Incident tables use a different publisher prefix, replace those
+> two names throughout the instruction block below. Everything else (columns, choices, relationships)
+> is discovered live via the Dataverse MCP server, so nothing else needs editing.
+
 ## Ready-to-paste agent instructions
 
 ```text

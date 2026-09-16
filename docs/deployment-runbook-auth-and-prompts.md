@@ -108,13 +108,20 @@ gh pr create --repo martycarreras-psnl/CustomAgentMDA `
   --body "Silent token refresh + SSO + reconnect; bundled role-aware prompt catalog. See docs/agent-sidecar-auth-continuity-and-dynamic-prompts.md and docs/presentation."
 ```
 
-Attach the deck (`docs/presentation/AgentSidecar-Auth-and-Prompts-Deck.html`) in the PR description.
+Attach the deck (`docs/presentation/index.html`) in the PR description.
 
 ---
 
 ## 3. Phase B — deploy the web resources to the environment
 
 Pick **one** route. Route 1 (`pac`) is the most surgical.
+
+> **Names below reflect our reference environment (Contoso-Dev): `agentSidePane.html` /
+> `agentSidePane.js` in the `AgentSidecarCore` solution.** If you started from **Marty's repo**, your
+> environment instead registers **`hrAgentSidePane.html` / `hrAgentSidePane.js`** in the
+> **`HRAgentSidecar`** solution, and the build emits `agentSidePane.*` whose *content* you upload into
+> those `hr…`-named resources. See **`docs/customer-implementation-guide.md` §4.0** for the exact
+> mapping, then substitute your environment's actual names wherever this runbook says `agentSidePane.*`.
 
 ### Authenticate first
 

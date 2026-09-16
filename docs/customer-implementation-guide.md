@@ -125,7 +125,7 @@ pnpm test
 pnpm lint
 pnpm build
 
-# Model-driven web resources (compiles agentSidePane.ts -> agentSidePane.js, incl. auth + prompts)
+# Model-driven web resources (bundles the pane + launcher into agentSidePane.html / .js, incl. auth + prompts)
 pnpm build:model-driven
 pnpm test:model-driven
 pnpm typecheck:model-driven
