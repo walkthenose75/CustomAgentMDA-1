@@ -38,3 +38,6 @@ solution/*.zip
 .env
 __pycache__/
 *.pyc
+
+# Transient solution export/import workspace (deploy-contoso-dev.ps1)
+_deploy/
