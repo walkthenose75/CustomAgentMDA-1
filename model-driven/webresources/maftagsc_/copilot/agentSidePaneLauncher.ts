@@ -5,6 +5,11 @@ import {
     type SidecarConfiguration
 } from "./sidecarConfiguration";
 import { normalizeUserRoles } from "./sidecarUserRoles";
+import {
+    configCacheKey,
+    isFreshEnvelope,
+    type CachedConfigEnvelope
+} from "./configCache";
 
 // The launcher runs on every form OnLoad and writes the current record context
 // here; the already-open side pane watches this key so navigation updates the
@@ -94,9 +99,47 @@ interface LaunchContext {
     upn: string;
 }
 
+// The OnLoad handler runs on every form, so the sidecar configuration (a small
+// Dataverse read) is cached in sessionStorage for a short TTL. This collapses
+// per-navigation reads to roughly one per browser session; the pane still reads a
+// fresh configuration when it (re)loads, so authoring changes surface promptly.
+function readCachedConfiguration(cacheKey: string): SidecarConfiguration | null {
+    try {
+        const raw = window.sessionStorage.getItem(cacheKey);
+        if (!raw) {
+            return null;
+        }
+        const envelope = JSON.parse(raw) as CachedConfigEnvelope<SidecarConfiguration>;
+        return isFreshEnvelope(envelope, Date.now()) ? envelope.configuration : null;
+    } catch {
+        return null;
+    }
+}
+
+function writeCachedConfiguration(cacheKey: string, configuration: SidecarConfiguration): void {
+    try {
+        const envelope: CachedConfigEnvelope<SidecarConfiguration> = {
+            savedAt: Date.now(),
+            configuration
+        };
+        window.sessionStorage.setItem(cacheKey, JSON.stringify(envelope));
+    } catch {
+        // A full or unavailable sessionStorage simply means the next OnLoad re-reads.
+    }
+}
+
 async function getConfiguration(): Promise<SidecarConfiguration> {
     const appProperties = await Xrm.Utility.getGlobalContext().getCurrentAppProperties();
-    return sidecarConfigurationRepository.getByAppId(appProperties.appId);
+    const cacheKey = configCacheKey(
+        normalizeGuid(appProperties.appId) ?? String(appProperties.appId ?? "")
+    );
+    const cached = readCachedConfiguration(cacheKey);
+    if (cached) {
+        return cached;
+    }
+    const configuration = await sidecarConfigurationRepository.getByAppId(appProperties.appId);
+    writeCachedConfiguration(cacheKey, configuration);
+    return configuration;
 }
 
 // Read the signed-in user's Dataverse security-role names from the host global

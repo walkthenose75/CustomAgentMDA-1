@@ -332,3 +332,84 @@ test("bootstrap no longer double-sources prompts (catalog is the single source)"
     assert.match(catalog, /Submit for approval/);
     assert.match(catalog, /export function applyPromptCatalog/);
 });
+
+test("navigation prefers the fresher in-scope form over a stale shared context", async () => {
+    // contextResolution.ts is import-free pure logic, so transform-and-import it
+    // and exercise the selection rule directly.
+    const src = await read(sourceRoot, "contextResolution.ts");
+    const js = (await transform(src, { loader: "ts", format: "esm" })).code;
+    const mod = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+    const { chooseResolvedContext, isSameForm } = mod;
+
+    const report = { pageType: "entityrecord", entityName: "contoso_incidentreport", recordId: "a" };
+    const process = { pageType: "entityrecord", entityName: "contoso_incidentprocess", recordId: "b" };
+    const fallback = { pageType: "entityrecord", entityName: "contoso_incidentreport", recordId: null };
+
+    // The bug: a stale launcher context (report) while the live host is on a
+    // different bound form (process) must yield the live form so chips change.
+    assert.deepEqual(chooseResolvedContext(report, process, fallback), process);
+
+    // Same form on both sides keeps the COOP-safe shared context.
+    assert.deepEqual(chooseResolvedContext(process, { ...process }, fallback), process);
+    // An unreadable host (null live) never discards a valid shared context.
+    assert.deepEqual(chooseResolvedContext(report, null, fallback), report);
+    // No shared context => use the live form; neither => the fallback.
+    assert.deepEqual(chooseResolvedContext(null, process, fallback), process);
+    assert.deepEqual(chooseResolvedContext(null, null, fallback), fallback);
+
+    // Form identity respects record id but ignores name/roles content.
+    assert.equal(isSameForm({ pageType: "entityrecord", entityName: "x", recordId: "1" },
+        { pageType: "entityrecord", entityName: "x", recordId: "1" }), true);
+    assert.equal(isSameForm({ pageType: "entityrecord", entityName: "x", recordId: "1" },
+        { pageType: "entityrecord", entityName: "x", recordId: "2" }), false);
+});
+
+test("pane reconciles stale shared context with the live host form", async () => {
+    const source = await read(sourceRoot, "agentSidePane.ts");
+    assert.match(source, /import \{ chooseResolvedContext \} from "\.\/contextResolution"/);
+    assert.match(
+        source,
+        /chooseResolvedContext\(\s*readSharedContext\(configuration, fallback\),\s*getCurrentContext\(fallback, configuration\),\s*fallback\s*\)/
+    );
+    // The live host read now reports "no in-scope form" as null (not the stale
+    // fallback) so the helper can tell a real context from the absence of one.
+    assert.match(
+        source,
+        /if \(!pageType \|\| !getEntityBinding\(configuration, entityName\)\) \{\s*return null;/
+    );
+});
+
+test("launcher config cache accepts only fresh, well-formed envelopes", async () => {
+    const src = await read(sourceRoot, "configCache.ts");
+    const js = (await transform(src, { loader: "ts", format: "esm" })).code;
+    const mod = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+    const { isFreshEnvelope, configCacheKey, CONFIG_CACHE_TTL_MS, CONFIG_CACHE_VERSION } = mod;
+
+    const now = 1_000_000_000;
+    assert.equal(isFreshEnvelope({ savedAt: now - 1000, configuration: { paneId: "p" } }, now), true);
+    // At the TTL boundary is still usable; one ms past is not.
+    assert.equal(isFreshEnvelope({ savedAt: now - CONFIG_CACHE_TTL_MS, configuration: {} }, now), true);
+    assert.equal(isFreshEnvelope({ savedAt: now - CONFIG_CACHE_TTL_MS - 1, configuration: {} }, now), false);
+    // Future timestamps (clock skew / tampering) and malformed shapes are rejected.
+    assert.equal(isFreshEnvelope({ savedAt: now + 5000, configuration: {} }, now), false);
+    assert.equal(isFreshEnvelope(null, now), false);
+    assert.equal(isFreshEnvelope({ configuration: {} }, now), false);
+    assert.equal(isFreshEnvelope({ savedAt: "nope", configuration: {} }, now), false);
+    assert.equal(isFreshEnvelope({ savedAt: now, configuration: null }, now), false);
+    // The key is app- and version-scoped so a format change invalidates old entries.
+    assert.equal(configCacheKey("app-1"), `maftagsc.sidecar.config.${CONFIG_CACHE_VERSION}.app-1`);
+});
+
+test("launcher caches the sidecar configuration per session to cut Dataverse reads", async () => {
+    const launcherSource = await read(sourceRoot, "agentSidePaneLauncher.ts");
+    assert.match(launcherSource, /from "\.\/configCache"/);
+    assert.match(launcherSource, /window\.sessionStorage\.getItem\(cacheKey\)/);
+    assert.match(launcherSource, /window\.sessionStorage\.setItem\(cacheKey/);
+    assert.match(launcherSource, /isFreshEnvelope\(envelope, Date\.now\(\)\)/);
+    // The Dataverse read still happens on a cache miss and its result is cached.
+    assert.match(launcherSource, /await sidecarConfigurationRepository\.getByAppId\(appProperties\.appId\)/);
+    assert.match(launcherSource, /writeCachedConfiguration\(cacheKey, configuration\)/);
+    // The built launcher carries the session cache.
+    const launcher = await read(sourceRoot, "agentSidePane.js");
+    assert.match(launcher, /sessionStorage/);
+});

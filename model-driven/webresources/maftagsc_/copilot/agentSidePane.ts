@@ -25,6 +25,7 @@ import {
 } from "./sidecarUserRoles";
 import { createSidecarConnectionSettings } from "./sidecarConnectionSettings";
 import { computeRefreshDelayMs } from "./tokenRefresh";
+import { chooseResolvedContext } from "./contextResolution";
 
 const ORIGINAL_TEXT_KEY = "hrSidecarOriginalText";
 const AUTH_REQUEST_KEY = "maftagsc.sidecar.authRequest";
@@ -211,7 +212,7 @@ function getCurrentRecordName(
 function getCurrentContext(
     fallback: LaunchContext,
     configuration: SidecarConfiguration
-): LaunchContext {
+): LaunchContext | null {
     try {
         const hostXrm = getHostXrm();
         const input = hostXrm?.Utility?.getPageContext?.().input;
@@ -220,7 +221,7 @@ function getCurrentContext(
             : null;
         const entityName = String(input?.entityName ?? "").trim().toLowerCase();
         if (!pageType || !getEntityBinding(configuration, entityName)) {
-            return fallback;
+            return null;
         }
 
         const recordId = pageType === "entityrecord" ? normalizeGuid(input?.entityId) : null;
@@ -241,13 +242,14 @@ function getCurrentContext(
             roles: fallback.roles
         };
     } catch {
-        return fallback;
+        return null;
     }
 }
 
-// The launcher writes the authoritative current-form context here on every
-// navigation. Prefer it (COOP- and partition-safe, same origin) over reading the
-// host Xrm from inside the pane, which is unreliable across frames.
+// Read the current-form context the launcher writes on navigation (same-origin
+// localStorage, COOP- and partition-safe). It is authoritative only for forms
+// whose launcher OnLoad handler is registered; resolveContext reconciles it with
+// the pane's live host read so a bound form missing that handler still updates.
 function readSharedContext(
     configuration: SidecarConfiguration,
     fallback: LaunchContext
@@ -278,7 +280,11 @@ function resolveContext(
     fallback: LaunchContext,
     configuration: SidecarConfiguration
 ): LaunchContext {
-    return readSharedContext(configuration, fallback) ?? getCurrentContext(fallback, configuration);
+    return chooseResolvedContext(
+        readSharedContext(configuration, fallback),
+        getCurrentContext(fallback, configuration),
+        fallback
+    );
 }
 
 // A login hint (the signed-in Dynamics user's UPN) lets MSAL renew the delegated
