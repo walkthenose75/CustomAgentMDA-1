@@ -6,7 +6,7 @@
 <title>Agent Sidecar — Silent Auth Continuity &amp; Dynamic Role-Aware Prompts</title>
 <meta name="description" content="Technical design &amp; delivery dossier for the Agent Sidecar: silent auth continuity and dynamic role-aware prompts for the Copilot Studio agent embedded in Dynamics 365 model-driven forms — architecture diagrams, real code, and an implementation guide." />
 <meta name="author" content="Agent Sidecar" />
-<meta name="theme-color" content="#b11f4b" />
+<meta name="theme-color" content="#0078d4" />
 <link rel="canonical" href="https://walkthenose75.github.io/CustomAgentMDA-1/presentation/" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Agent Sidecar" />
@@ -18,7 +18,7 @@
 <meta name="twitter:title" content="Agent Sidecar — Silent Auth &amp; Dynamic Prompts" />
 <meta name="twitter:description" content="Architecture, real code, and an implementation guide for the Dynamics 365 Copilot sidecar enhancements." />
 <meta name="twitter:image" content="https://walkthenose75.github.io/CustomAgentMDA-1/presentation/og-cover.png" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23b11f4b'/%3E%3Cpath d='M7 8h18v12H12l-5 5V8z' fill='white'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='white'/%3E%3Crect x='5' y='5' width='10' height='10' fill='%23F25022'/%3E%3Crect x='17' y='5' width='10' height='10' fill='%237FBA00'/%3E%3Crect x='5' y='17' width='10' height='10' fill='%2300A4EF'/%3E%3Crect x='17' y='17' width='10' height='10' fill='%23FFB900'/%3E%3C/svg%3E" />
 <script>
   (() => {
     const param = new URLSearchParams(window.location.search).get("scoutTheme");
@@ -39,9 +39,9 @@
   --cp-text: #242424;
   --cp-text-muted: #5c5c5c;
   --cp-text-soft: #6f6f6f;
-  --cp-accent: #b11f4b;
-  --cp-accent-hover: #9a1a41;
-  --cp-accent-soft: rgba(177, 31, 75, 0.08);
+  --cp-accent: #0078d4;
+  --cp-accent-hover: #106ebe;
+  --cp-accent-soft: rgba(0, 120, 212, 0.08);
   --cp-accent-fg: #ffffff;
   --cp-success: #16a34a;
   --cp-danger: #dc2626;
@@ -52,7 +52,7 @@
   --cp-panel: rgba(255, 255, 255, 0.86);
   --cp-panel-strong: rgba(255, 255, 255, 0.96);
   --cp-sheen: rgba(255, 255, 255, 0.55);
-  --cp-highlight: rgba(177, 31, 75, 0.12);
+  --cp-highlight: rgba(0, 120, 212, 0.12);
 }
 html[data-theme="dark"] {
   color-scheme: dark;
@@ -65,10 +65,10 @@ html[data-theme="dark"] {
   --cp-text: #dedede;
   --cp-text-muted: #919191;
   --cp-text-soft: #b0b0b0;
-  --cp-accent: #fd8ea1;
-  --cp-accent-hover: #fb7b91;
-  --cp-accent-soft: rgba(253, 142, 161, 0.14);
-  --cp-accent-fg: #1a1a1a;
+  --cp-accent: #4da6ff;
+  --cp-accent-hover: #2b93f0;
+  --cp-accent-soft: rgba(77, 166, 255, 0.14);
+  --cp-accent-fg: #0a1a2f;
   --cp-success: #4ade80;
   --cp-danger: #f87171;
   --cp-warning: #fbbf24;
@@ -78,7 +78,7 @@ html[data-theme="dark"] {
   --cp-panel: rgba(41, 41, 41, 0.72);
   --cp-panel-strong: rgba(41, 41, 41, 0.96);
   --cp-sheen: rgba(255, 255, 255, 0.04);
-  --cp-highlight: rgba(253, 142, 161, 0.12);
+  --cp-highlight: rgba(77, 166, 255, 0.12);
 }
 
 * { box-sizing: border-box; }
@@ -110,6 +110,9 @@ header.topbar {
 }
 .topbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; }
 .topbar .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--cp-accent); box-shadow: 0 0 0 4px var(--cp-accent-soft); }
+.topbar .brand .ms-logo { display: block; flex: none; }
+.topbar .brand .brand-ms { font-weight: 600; color: var(--cp-text-muted); }
+.topbar .brand .brand-sep { width: 1px; height: 15px; background: var(--cp-border-strong); display: inline-block; }
 .topbar nav { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
 .topbar nav a {
   color: var(--cp-text-muted); text-decoration: none; font-size: 13px; font-weight: 600;
@@ -138,6 +141,9 @@ main { min-width: 0; }
 /* Hero */
 .hero { padding: 72px 0 40px; }
 .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cp-accent); background: var(--cp-accent-soft); padding: 6px 12px; border-radius: 999px; }
+.ms-lockup { display: inline-flex; align-items: center; gap: 9px; margin-bottom: 16px; font-weight: 600; font-size: 15px; color: var(--cp-text); }
+.ms-lockup svg { display: block; }
+.muted-sm { color: var(--cp-text-muted); font-size: 13px; }
 .hero h1 { font-size: clamp(30px, 5vw, 50px); line-height: 1.1; margin: 20px 0 12px; letter-spacing: -0.01em; }
 .hero .lede { font-size: clamp(16px, 2.2vw, 20px); color: var(--cp-text-muted); max-width: 60ch; margin: 0 0 26px; }
 .chips { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -335,7 +341,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
 <div id="progress"></div>
 
 <header class="topbar">
-  <div class="brand"><span class="dot"></span> Agent Sidecar</div>
+  <div class="brand"><svg class="ms-logo" width="18" height="18" viewBox="0 0 23 23" aria-hidden="true"><rect x="1" y="1" width="10" height="10" fill="#F25022"></rect><rect x="12" y="1" width="10" height="10" fill="#7FBA00"></rect><rect x="1" y="12" width="10" height="10" fill="#00A4EF"></rect><rect x="12" y="12" width="10" height="10" fill="#FFB900"></rect></svg><span class="brand-ms">Microsoft</span><span class="brand-sep"></span><span>Agent Sidecar</span></div>
   <nav>
     <a href="#summary">Summary</a>
     <a href="#economics">Economics</a>
@@ -380,13 +386,14 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
 
 <!-- HERO -->
 <section class="hero" id="top" style="border:none;">
+  <div class="ms-lockup"><svg width="22" height="22" viewBox="0 0 23 23" aria-hidden="true"><rect x="1" y="1" width="10" height="10" fill="#F25022"></rect><rect x="12" y="1" width="10" height="10" fill="#7FBA00"></rect><rect x="1" y="12" width="10" height="10" fill="#00A4EF"></rect><rect x="12" y="12" width="10" height="10" fill="#FFB900"></rect></svg><span>Microsoft</span></div>
   <span class="eyebrow">Technical Design &amp; Delivery Dossier</span>
   <h1>Silent Auth Continuity &amp;<br>Dynamic Role-Aware Prompts</h1>
   <p class="lede">Two production-grade enhancements to the <strong>Agent Sidecar</strong> — the Copilot Studio agent embedded in Dynamics 365 model-driven forms. One keeps the conversation alive for the length of a real work session; the other makes the agent context-aware on every form.</p>
   <div class="chips">
     <span class="chip ok"><span class="k">Status</span> <b>Live in Contoso-Dev</b></span>
-    <span class="chip"><span class="k">PR</span> #3 · MERGEABLE · 17 commits</span>
-    <span class="chip"><span class="k">Schema change</span> None required</span>
+    <span class="chip"><span class="k">PR</span> #3 · Open · Mergeable</span>
+    <span class="chip"><span class="k">Schema footprint</span> 1 column · no new table</span>
     <span class="chip"><span class="k">Identity</span> Delegated (per-user)</span>
   </div>
 </section>
@@ -395,7 +402,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
 <section id="summary">
   <div class="sec-kicker">01 — Executive summary</div>
   <h2>What we built, and why it matters</h2>
-  <p>The Agent Sidecar surfaces a Copilot Studio agent in a side pane on Dynamics 365 forms, authenticated as the <em>signed-in user</em> (delegated identity) so its answers respect that user's permissions. Two gaps limited it in the field. We closed both — with no Dataverse schema change, no new interactive sign-in surface, and the delegated-identity model fully preserved.</p>
+  <p>The Agent Sidecar surfaces a Copilot Studio agent in a side pane on Dynamics 365 forms, authenticated as the <em>signed-in user</em> (delegated identity) so its answers respect that user's permissions. Two gaps limited it in the field. We closed both — with a single additive configuration column (no new table), no new interactive sign-in surface, and the delegated-identity model fully preserved.</p>
 
   <div class="grid two">
     <div class="card">
@@ -408,12 +415,12 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
       <div class="pill">Feature 2</div>
       <h3 style="margin-top:10px;">Dynamic role-aware prompts</h3>
       <p><strong>Problem:</strong> the pane offered no starting points, or generic ones. Users stared at an empty box and didn't know what the agent could do for <em>this</em> record.</p>
-      <p><strong>Solution:</strong> form-specific suggested-prompt chips, keyed by the table's logical name and filtered by the user's security roles. Clicking a chip sends its text <em>with full record/form context attached</em>. Prompts ship as a bundled catalog and can be overridden per-table from an in-app admin editor — all persisted as JSON on an existing column.</p>
+      <p><strong>Solution:</strong> form-specific suggested-prompt chips, keyed by the table's logical name and filtered by the user's security roles. Clicking a chip sends its text <em>with full record/form context attached</em>. Prompts ship as a bundled catalog and can be overridden per-table from an in-app admin editor — persisted as JSON on a dedicated <code>maftagsc_prompts</code> column added to the existing config table (one additive column, no new table).</p>
     </div>
   </div>
 
   <div class="grid three" style="margin-top:18px;">
-    <div class="card"><div class="num">0</div><div class="cap">Dataverse schema changes required — prompts persist as JSON on an existing column.</div></div>
+    <div class="card"><div class="num">1</div><div class="cap">Additive Dataverse column (<code>maftagsc_prompts</code>) on the existing config table — no new table; the runtime degrades gracefully without it.</div></div>
     <div class="card"><div class="num">~5 min</div><div class="cap">Refresh skew — a fresh token is in hand before the old one could ever be presented.</div></div>
     <div class="card"><div class="num">1 click</div><div class="cap">Worst-case recovery — the "Reconnect" chip resumes the <em>same</em> conversation, usually with zero prompts.</div></div>
   </div>
@@ -665,7 +672,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
     <div class="card">
       <h4 style="margin-top:0;">Code &amp; data</h4>
       <ul>
-        <li><strong>No Dataverse schema change</strong> for v1 — the prompt catalog is a JSON blob on an existing text column.</li>
+        <li><strong>One additive column</strong> — authored prompts persist as JSON on a dedicated <code>maftagsc_prompts</code> column on the existing config table (no new table); the bundled catalog needs no schema change and the repository tolerates the column's absence.</li>
         <li>Code App rules honoured: <code>src/generated/**</code> read-only, three-layer architecture, HashRouter, Fluent UI v9.</li>
         <li>Green baseline stays green: typecheck, unit tests, lint, build, plus the model-driven build + node tests.</li>
       </ul>
@@ -875,8 +882,8 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
   </figure>
 
   <div class="callout info">
-    <div class="tag">Why no schema change</div>
-    <p>The bundled catalog means prompts work the moment the pane loads — even against a Dataverse config whose binding table carries no prompts column. The authored override is a compact JSON string on an existing memo column. A dedicated table can come later; it isn't needed to ship.</p>
+    <div class="tag">Why the footprint is one column</div>
+    <p>The bundled catalog means prompts work the moment the pane loads — even against a Dataverse config that has no prompts column yet, because the repository selects that column separately and tolerates its absence. Authored overrides persist as a compact JSON string on a single dedicated memo column — <code>maftagsc_prompts</code> — added to the existing config table: <strong>one additive column, no new table</strong>.</p>
   </div>
 
   <h3 id="prompts-code">Key code</h3>
@@ -912,54 +919,92 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--cp-accent); out
 <section id="implement">
   <div class="sec-kicker">05 — Delivery</div>
   <h2>How the customer implements this</h2>
-  <p>Everything is already built, tested, and packaged as <strong>PR #3</strong> against the upstream repo. Because it started from Marty's repository, the exact path depends on whether the customer <em>cloned</em> or <em>forked</em> it — and who holds merge rights upstream. In all cases the work is <strong>review-and-merge, not re-implementation.</strong></p>
+  <p>Everything is built, tested, and packaged as <strong>PR #3</strong>. Because the customer started from Marty's repository, the path is <strong>review → merge → build → deploy → verify</strong> — never re-implementation. The full copy-paste runbook is <code>docs/customer-implementation-guide.md</code>; the essentials are below.</p>
 
-  <div class="grid two">
+  <h3 style="margin-top:6px;">Step 1 · Get the code into your repo</h3>
+  <p>Pick the track that matches how you started from Marty's repo. The change lives on branch <code>feature/auth-refresh-and-dynamic-prompts</code> (fork <code>walkthenose75/CustomAgentMDA-1</code>).</p>
+  <div class="grid three">
     <div class="card">
-      <h3 style="margin-top:0;">If they forked Marty's repo</h3>
-      <ol>
-        <li>The branch <code>feature/auth-refresh-and-dynamic-prompts</code> already lives on the fork and drives PR #3.</li>
-        <li>In <strong>VS Code</strong>: <code>git fetch</code>, check out the branch, open the <strong>GitHub Pull Requests</strong> extension, and review PR #3 inline.</li>
-        <li>Merge into their <code>main</code> (<strong>squash</strong> recommended to collapse 17 commits), or forward PR #3 to Marty if upstream is the destination.</li>
-      </ol>
+      <div class="pill">Track A · Forked</div>
+      <h4 style="margin:10px 0 4px;">Sync from upstream</h4>
+      <p class="muted-sm">After PR #3 merges upstream, sync your fork.</p>
+      <pre style="margin:6px 0 0;"><code>git remote add upstream \
+  https://github.com/martycarreras-psnl/CustomAgentMDA.git
+git fetch upstream
+git checkout main
+git merge upstream/main
+git push origin main</code></pre>
     </div>
     <div class="card">
-      <h3 style="margin-top:0;">If they cloned Marty's repo</h3>
-      <ol>
-        <li>Add the fork as a remote and pull the branch:
-          <pre style="margin:8px 0 0;"><code>git remote add sidecar https://github.com/walkthenose75/CustomAgentMDA-1.git
-git fetch sidecar feature/auth-refresh-and-dynamic-prompts
-git checkout -b sidecar-auth-prompts sidecar/feature/auth-refresh-and-dynamic-prompts</code></pre>
-        </li>
-        <li>Review the diff in VS Code, then merge/cherry-pick into their working branch.</li>
-      </ol>
+      <div class="pill">Track B · Cloned</div>
+      <h4 style="margin:10px 0 4px;">Pull the branch now</h4>
+      <p class="muted-sm">Get it before upstream merges.</p>
+      <pre style="margin:6px 0 0;"><code>git remote add sidecar \
+  https://github.com/walkthenose75/CustomAgentMDA-1.git
+git fetch sidecar \
+  feature/auth-refresh-and-dynamic-prompts
+git checkout -b sidecar-auth-prompts \
+  sidecar/feature/auth-refresh-and-dynamic-prompts</code></pre>
+    </div>
+    <div class="card">
+      <div class="pill">Track C · Patch</div>
+      <h4 style="margin:10px 0 4px;">Apply a reviewable diff</h4>
+      <p class="muted-sm">Cleanest audit trail.</p>
+      <pre style="margin:6px 0 0;"><code>gh pr diff 3 \
+  --repo martycarreras-psnl/CustomAgentMDA \
+  --patch > sidecar.patch
+git checkout -b sidecar-auth-prompts
+git apply --3way sidecar.patch</code></pre>
     </div>
   </div>
+
+  <h3>Step 2 · Review in VS Code</h3>
+  <p>Install the <strong>GitHub Pull Requests</strong> extension, open <strong>PR #3</strong>, and review inline. The change is additive and concentrated in the <code>copilot/</code> web resources (auth + prompts), <code>src/lib/sidecar-prompts.ts</code>, the admin editor, and one solution entity file (the new column).</p>
 
   <div class="callout warn">
     <div class="tag">The one real gate</div>
     <p>PR #3 targets <code>martycarreras-psnl/CustomAgentMDA</code>, where the customer currently has <strong>read-only</strong> access. To land it <em>upstream</em>, someone with write access (Marty, or an upstream maintainer) clicks merge. To ship without waiting on upstream, merge into the fork's <code>main</code> and deploy from there — the same line already proven in Contoso-Dev.</p>
   </div>
 
-  <h3>Deploying to an environment</h3>
-  <p>The code is environment-agnostic — it reads all per-environment behaviour from the Dataverse config record at runtime. A target environment needs four things wired once:</p>
+  <h3>Step 3 · Build &amp; verify locally</h3>
+  <pre><code><span class="c"># this repo uses pnpm (npm works too)</span>
+pnpm install
+pnpm typecheck &amp;&amp; pnpm test &amp;&amp; pnpm lint &amp;&amp; pnpm build
+<span class="c"># compile the deployable web resources (auth + prompts)</span>
+pnpm build:model-driven &amp;&amp; pnpm test:model-driven</code></pre>
+
+  <h3>Step 4 · Deploy to Dataverse</h3>
   <table>
-    <thead><tr><th>Step</th><th>What</th><th>How</th></tr></thead>
+    <thead><tr><th>#</th><th>What</th><th>How</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td>Solution</td><td>Import <code>AgentSidecarCore</code> (includes the web resources + the portable <code>maftagsc_prompts</code> column).</td></tr>
-      <tr><td>2</td><td>Web resources</td><td>Publish <code>agentSidePane.js</code> et al. — built from <code>model-driven/</code> via <code>node build.mjs</code>.</td></tr>
-      <tr><td>3</td><td>Entra app registration</td><td>Register (or reuse) an app for the target env; set the client/redirect values in the pane config.</td></tr>
-      <tr><td>4</td><td>Config record</td><td>Create/point <code>maftagsc_sidecarconfiguration</code> at the target agent + tables; optionally author prompts.</td></tr>
+      <tr><td>1</td><td>Authenticate</td><td><code>pac auth create --environment https://YOURORG.crm.dynamics.com</code>, then <code>pac org who</code>.</td></tr>
+      <tr><td>2</td><td><strong>The one column</strong></td><td>Add <code>maftagsc_prompts</code> (multiline text, 100k) to <code>maftagsc_sidecarconfiguration</code> — via solution import or manually in make.powerapps.com. <em>Needed only for admin-authored prompts.</em></td></tr>
+      <tr><td>3</td><td>Web resources</td><td>Publish the built <code>agentSidePane.js</code> / <code>.html</code> — maker-portal upload, or <code>pac solution import --publish-changes</code>.</td></tr>
+      <tr><td>4</td><td>Admin app <span class="pill n">optional</span></td><td><code>pac code push -s "AgentSidecarCore"</code> to ship the in-app prompt editor.</td></tr>
+      <tr><td>5</td><td>Publish</td><td>Publish all customizations so users get the new resources.</td></tr>
     </tbody>
   </table>
-  <p>The full turnkey sequence — including a greenfield install appendix — is documented in <code>docs/deployment-runbook-auth-and-prompts.md</code> and <code>docs/post-import-setup-contoso-dev.md</code>.</p>
+
+  <div class="callout info">
+    <div class="tag">The one schema change — stated plainly</div>
+    <p>The delivered solution adds exactly <strong>one column</strong>: <code>maftagsc_prompts</code> (a JSON memo field) on the <em>existing</em> <code>maftagsc_sidecarconfiguration</code> table. <strong>No new table.</strong> The runtime is designed to run <em>without</em> it — the bundled catalog renders prompts and the repository tolerates the column's absence — so the column is required only when admins author overrides.</p>
+  </div>
+
+  <h3>Step 5 · Verify</h3>
+  <ul>
+    <li>Prompt chips render on the <strong>Incident Reports</strong> / <strong>Incident Process</strong> forms, filtered by role.</li>
+    <li>Clicking a chip sends its text <em>with record context</em> attached.</li>
+    <li>The pane stays alive past the token lifetime (~60–90&nbsp;min) with no <code>401</code>; worst case, a one-click <strong>Reconnect</strong> chip resumes the <em>same</em> conversation.</li>
+    <li>Authored prompts (if the column was added) override the bundled catalog on the form.</li>
+  </ul>
 
   <h3>Recommended GitHub + VS Code workflow</h3>
   <ul>
     <li><strong>Guardrails auto-load.</strong> <code>.github/instructions/20-agent-sidecar-auth-and-prompts.instructions.md</code> is path-scoped, so Copilot in VS Code applies the auth/prompt non-negotiables automatically when those files are open.</li>
     <li><strong>Start from the index.</strong> <code>AuthPromptPlan.md</code> in the repo root is the handoff map — status, file anchors, verify commands, and an extension backlog.</li>
-    <li><strong>Extend, don't rebuild.</strong> Two issue specs in <code>docs/handoff/</code> are ready for the Copilot coding agent — use them for the backlog (telemetry, configurable skew, admin authoring polish), not to re-create shipped code.</li>
+    <li><strong>Extend, don't rebuild.</strong> Issue specs in <code>docs/handoff/</code> are ready for the Copilot coding agent (telemetry, configurable skew, admin-authoring polish).</li>
   </ul>
+  <p class="muted-sm">Deep runbook: <code>docs/deployment-runbook-auth-and-prompts.md</code> · Full customer guide: <code>docs/customer-implementation-guide.md</code> · Copilot Studio agent (Dataverse MCP) instructions for the Incident tables: <code>docs/copilot-studio-agent-instructions.md</code>.</p>
 </section>
 
 <!-- ================= TESTING ================= -->
@@ -1005,7 +1050,7 @@ npm run build:model-driven &amp;&amp; npm run test:model-driven &amp;&amp; npm r
     <div class="card">
       <h3 style="margin-top:0;">Pull request</h3>
       <p><span class="pill g">MERGEABLE</span> <span class="pill n">no conflicts</span> <span class="pill n">no required checks</span></p>
-      <p><strong>PR #3</strong> → <code>martycarreras-psnl/CustomAgentMDA</code>. 17 commits, both features, with a review-and-merge description (summary, what-to-review, green-baseline commands, deploy state). Nothing blocks the merge except upstream write access.</p>
+      <p><strong>PR #3</strong> → <code>martycarreras-psnl/CustomAgentMDA</code>. Both features, with a review-and-merge description (summary, what-to-review, green-baseline commands, deploy state). Nothing blocks the merge except upstream write access.</p>
       <p><a class="inline" href="https://github.com/martycarreras-psnl/CustomAgentMDA/pull/3">View PR #3 ↗</a></p>
     </div>
     <div class="card">
@@ -1037,6 +1082,8 @@ npm run build:model-driven &amp;&amp; npm run test:model-driven &amp;&amp; npm r
       <tr><td>Docs</td><td><code>AuthPromptPlan.md</code></td><td>Handoff index — status, anchors, verify commands, backlog.</td></tr>
       <tr><td>Docs</td><td><code>docs/handoff/issue-*.md</code></td><td>Coding-agent-ready issue specs for the extension backlog.</td></tr>
       <tr><td>Deploy</td><td><code>docs/deployment-runbook-auth-and-prompts.md</code></td><td>Turnkey deploy routes, rollback, greenfield appendix.</td></tr>
+      <tr><td>Deploy</td><td><code>docs/customer-implementation-guide.md</code></td><td>Step-by-step fork → build → deploy → verify for the customer.</td></tr>
+      <tr><td>Agent</td><td><code>docs/copilot-studio-agent-instructions.md</code></td><td>Copilot Studio agent instructions (Dataverse MCP) for the Incident tables.</td></tr>
     </tbody>
   </table>
 
@@ -1054,7 +1101,7 @@ npm run build:model-driven &amp;&amp; npm run test:model-driven &amp;&amp; npm r
 </section>
 
 <footer>
-  <p><strong>Agent Sidecar</strong> — Silent Auth Continuity &amp; Dynamic Role-Aware Prompts. Delegated identity · no schema change.</p>
+  <p><strong>Agent Sidecar</strong> — Silent Auth Continuity &amp; Dynamic Role-Aware Prompts. Delegated identity · one additive config column · no new table.</p>
   <p>Source: <a href="https://github.com/walkthenose75/CustomAgentMDA-1">walkthenose75/CustomAgentMDA-1</a> · Pull request: <a href="https://github.com/martycarreras-psnl/CustomAgentMDA/pull/3">PR #3 ↗</a> · Self-contained page at <code>docs/presentation/index.html</code>. Supports light/dark, reduced-motion, and print-to-PDF.</p>
 </footer>
 
