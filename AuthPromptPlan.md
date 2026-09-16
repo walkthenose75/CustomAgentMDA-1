@@ -11,6 +11,11 @@ reference implementation.
 > auto-loaded by Copilot from `.github/instructions/20-agent-sidecar-auth-and-prompts.instructions.md`
 > — you don't need to re-paste them.
 
+> **📊 Prefer a visual walkthrough?** Open the self-contained presentation at
+> [`docs/presentation/index.html`](docs/presentation/index.html) — executive summary, architecture
+> diagrams, both features deep-dived with real code, the implementation guide, and the test recipe, all
+> in one themeable page (open it in a browser, or serve `docs/` via GitHub Pages).
+
 ---
 
 ## 0. Current status (important — the work already exists)
