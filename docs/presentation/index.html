@@ -1008,8 +1008,8 @@ pnpm build:model-driven &amp;&amp; pnpm test:model-driven</code></pre>
     <tbody>
       <tr><td>1</td><td>Authenticate</td><td><code>pac auth create --environment https://YOURORG.crm.dynamics.com</code>, then <code>pac org who</code>.</td></tr>
       <tr><td>2</td><td><strong>The one column</strong></td><td>Add <code>maftagsc_prompts</code> (multiline text, 100k) to <code>maftagsc_sidecarconfiguration</code> — via solution import or manually in make.powerapps.com. <em>Needed only for admin-authored prompts.</em></td></tr>
-      <tr><td>3</td><td>Web resources</td><td>Publish the built <code>agentSidePane.js</code> / <code>.html</code> — maker-portal upload, or <code>pac solution import --publish-changes</code>.</td></tr>
-      <tr><td>4</td><td>Admin app <span class="pill n">optional</span></td><td><code>pac code push -s "AgentSidecarCore"</code> to ship the in-app prompt editor.</td></tr>
+      <tr><td>3</td><td>Web resources</td><td>Upload the built <code>agentSidePane.html</code> / <code>.js</code> <em>content</em> into your environment's existing side-pane + launcher resources (in a Marty-derived solution: <code>hrAgentSidePane.*</code>) — maker-portal upload, or sync-then-<code>pac solution import --publish-changes</code>. <em>See customer guide §4.0.</em></td></tr>
+      <tr><td>4</td><td>Admin app <span class="pill n">optional</span></td><td><code>pac code push -s "HRAgentSidecar"</code> (the repo's solution unique name) to ship the in-app prompt editor.</td></tr>
       <tr><td>5</td><td>Publish</td><td>Publish all customizations so users get the new resources.</td></tr>
     </tbody>
   </table>

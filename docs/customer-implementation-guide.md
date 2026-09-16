@@ -20,7 +20,7 @@ build → deploy → verify** — not re-implementation.
 | **Where the code is** | Branch `feature/auth-refresh-and-dynamic-prompts` on the fork `walkthenose75/CustomAgentMDA-1`, open as **PR #3** → upstream `martycarreras-psnl/CustomAgentMDA`. |
 | **Identity model** | Unchanged — delegated (per-user). No new interactive sign-in surface. |
 | **The one schema change** | A single **additive column** `maftagsc_prompts` (multiline text, max 100,000) on the **existing** `maftagsc_sidecarconfiguration` table. **No new table.** Needed only for admin-authored prompt overrides — the runtime works without it. |
-| **Deploy surface** | Web resources (`agentSidePane.js` / `.html`) + the one column + (optional) the admin Code App. |
+| **Deploy surface** | Two web resources — your side-pane HTML + launcher JS (in a Marty‑derived solution these are `hrAgentSidePane.html` / `hrAgentSidePane.js`) + the one column + (optional) the admin Code App. **The build emits `agentSidePane.html` / `.js`; you upload that *content* into your existing resources — see §4.0.** |
 | **Rollback** | Republish the previous web resources. The column is additive and non-destructive. |
 
 ### Prerequisites
@@ -133,7 +133,9 @@ pnpm typecheck:model-driven
 
 What this proves before you touch an environment:
 
-- `build:model-driven` produces the **deployable** `agentSidePane.js` / `.html` (this is what you ship).
+- `build:model-driven` produces the **deployable** `agentSidePane.html` / `agentSidePane.js` — this is
+  the **content** you upload into your environment's existing web resources (see **§4.0** — the
+  registered names in a Marty‑derived solution are `hrAgentSidePane.*`, not `agentSidePane.*`).
 - `test:model-driven` exercises the pure token-refresh timing math and the prompt merge/serialization.
 - `pnpm test` covers the admin app, including graceful degradation when the `maftagsc_prompts` column
   is absent.
@@ -141,6 +143,30 @@ What this proves before you touch an environment:
 ---
 
 ## 4. Deploy to your Dataverse environment
+
+### 4.0 Names in your environment (read this first)
+
+This repo's **build-output filename** differs from the **registered web-resource name**, and the
+difference matters at deploy time. Reconcile it once, here:
+
+| Role | File the build produces | Web resource registered by Marty's solution | What the app loads |
+|---|---|---|---|
+| Side pane (runtime: auth refresh + prompts) | `…/copilot/agentSidePane.html` | `maftagsc_/copilot/hrAgentSidePane.html` | the **registered** one |
+| Form launcher (UPN → `loginHint`) | `…/copilot/agentSidePane.js` | `maftagsc_/copilot/hrAgentSidePane.js` | the **registered** one |
+| Icon (rarely changes) | `…/copilot/agentGuideLibrary.svg` | `maftagsc_/copilot/hrGuideLibrary.svg` | the **registered** one |
+| MSAL redirect (unchanged) | `…/copilot/authRedirect.html` | `maftagsc_/copilot/authRedirect.html` | same name |
+
+**Why:** `solution/Other/Solution.xml` registers the **`hr…`-named** resources, the launcher opens the
+pane by **config value** (`webResourceName`), and `pnpm build:model-driven` writes the fresh bundle to
+the **generic `agentSidePane.*`** files — it does **not** touch the `hr…` files. So the rule is simple:
+
+> **Deploy = put the *content* of the freshly built `agentSidePane.html` / `agentSidePane.js` into the
+> web resources your environment already uses (the `hrAgentSidePane.*` names), keeping those names.**
+
+**Confirm your names** (a team may have renamed things): in **make.powerapps.com → your solution →
+Web resources**, note the side-pane `…html` and launcher `…js` names; they should match the
+`webResourceName` on your `maftagsc_sidecarconfiguration` record. Use *those* names wherever this guide
+says `hrAgentSidePane.*`.
 
 ### 4a. Authenticate
 
@@ -157,8 +183,9 @@ pac org who        # confirm you're pointed at the intended environment
 
 **Option 1 — Solution import (recommended; the column travels with the solution).**
 The column is defined in `solution/Entities/maftagsc_sidecarconfiguration/Entity.xml`. Import the
-solution that owns your sidecar in the target environment (e.g. `AgentSidecarCore`), then publish.
-See §4c Route 2 for the pack/import commands.
+solution that owns your sidecar in the target environment (the repo ships it as **`HRAgentSidecar`** —
+confirm the unique name with `pac solution list`), then publish. See §4c Route 2 for the pack/import
+commands (which include the required web-resource sync step).
 
 **Option 2 — Add the column manually (fastest, no packaging).**
 1. Go to **make.powerapps.com** → your environment → **Tables** → **Sidecar Configuration**
@@ -171,19 +198,32 @@ See §4c Route 2 for the pack/import commands.
 
 ### 4c. Deploy the web resources (silent auth + prompts runtime)
 
-The compiled `agentSidePane.js` / `.html` carry **both** features. Choose one route.
+The compiled bundle carries **both** features. You upload its **content** into your environment's
+existing web resources (the `hrAgentSidePane.*` names — see **§4.0**). Choose one route.
 
-**Route 1 — Maker portal (lowest risk, no CLI surprises):**
-1. **make.powerapps.com** → **Solutions** → open the solution that owns the pane
-   (e.g. `AgentSidecarCore`).
-2. Open **Web resources** → `maftagsc_/copilot/agentSidePane.js` → **Upload file** →
-   select your freshly built `model-driven/.../agentSidePane.js` → **Save**.
-3. Repeat for `agentSidePane.html` (and the launcher, if changed).
+**Route 1 — Maker portal, content upload (recommended; lowest risk):**
+1. **make.powerapps.com** → **Solutions** → open the solution that owns the pane (the repo ships it as
+   **`HRAgentSidecar`**; confirm the unique name with `pac solution list`).
+2. Open **Web resources** → your **side-pane** resource **`maftagsc_/copilot/hrAgentSidePane.html`** →
+   **Upload file** → select your freshly built
+   `model-driven/webresources/maftagsc_/copilot/agentSidePane.html` → **Save**.
+3. Repeat for the **launcher** **`maftagsc_/copilot/hrAgentSidePane.js`** ← built
+   `…/copilot/agentSidePane.js`. **The launcher changed in this release (UPN → `loginHint`), so this
+   step is required — not optional.**
 4. **Publish all customizations.**
 
+> Uploading a file to an existing web resource keeps its **name** and swaps its **content** — exactly
+> what you want. If your resource names differ from `hrAgentSidePane.*`, use your own (see §4.0).
+
 **Route 2 — Solution import (repeatable / CI-friendly):**
-```bash
-# pack the unmanaged solution folder to a zip, then import + publish
+```powershell
+# 1) Sync the freshly built bundle INTO the registered hr-named files.
+#    REQUIRED: build:model-driven writes agentSidePane.* and does NOT refresh hrAgentSidePane.*,
+#    which are the resources the solution actually deploys. Skip this and you ship STALE runtime code.
+Copy-Item solution\WebResources\maftagsc_\copilot\agentSidePane.html solution\WebResources\maftagsc_\copilot\hrAgentSidePane.html -Force
+Copy-Item solution\WebResources\maftagsc_\copilot\agentSidePane.js   solution\WebResources\maftagsc_\copilot\hrAgentSidePane.js   -Force
+
+# 2) Pack the unmanaged solution folder to a zip, then import + publish.
 pac solution pack   --zipfile .\AgentSidecar-updated.zip --folder .\solution --packagetype Unmanaged
 pac solution import --path .\AgentSidecar-updated.zip --publish-changes
 ```
@@ -197,8 +237,8 @@ pac solution import --path .\AgentSidecar-updated.zip --publish-changes
 If your team will use the in-app editor to author prompts (which writes JSON to `maftagsc_prompts`):
 
 ```bash
-# -s = solution UNIQUE name; required on the first push into a new environment
-pac code push -s "AgentSidecarCore"
+# -s = solution UNIQUE name; the repo ships HRAgentSidecar (confirm with: pac solution list)
+pac code push -s "HRAgentSidecar"
 ```
 
 ### 4e. Publish
@@ -222,9 +262,10 @@ Open an **Incident Reports** or **Incident Process** form in the model-driven ap
 
 ## 6. Rollback
 
-- **Web resources:** re-upload the previous `agentSidePane.js` / `.html` (retrieve with
-  `git show main:solution/WebResources/maftagsc_/copilot/agentSidePane.js`) and **Publish** — instant
-  and safe.
+- **Web resources:** in **make.powerapps.com → Solutions → your solution → Web resources**, open the
+  side-pane (`hrAgentSidePane.html`) and launcher (`hrAgentSidePane.js`), **Upload file** with the
+  previous build, then **Publish**. Dataverse also retains the prior published version; content upload
+  is instant and non-destructive.
 - **Column:** `maftagsc_prompts` is **additive and non-destructive**. Leave it in place (harmless when
   unused) or remove it after exporting any authored prompt data. Removing it does not affect the
   bundled-catalog runtime.
@@ -258,7 +299,10 @@ Open an **Incident Reports** or **Incident Process** form in the model-driven ap
 ## Appendix B — Related docs
 
 - `docs/deployment-runbook-auth-and-prompts.md` — the deep operational runbook (routes, topology notes,
-  greenfield install appendix, verification, rollback).
+  greenfield install appendix, verification, rollback). **Note:** that runbook was written against our
+  reference environment, where the web resources are named `agentSidePane.*` and the solution is
+  `AgentSidecarCore`. In a **Marty-derived** environment the equivalents are **`hrAgentSidePane.*`** and
+  **`HRAgentSidecar`** — see §4.0 and always use your environment's actual names.
 - `docs/copilot-studio-agent-instructions.md` — instructions for the Copilot Studio agent that answers
   questions over the Incident tables via a Dataverse MCP server.
 - `docs/presentation/` — the technical design & delivery dossier (visual walkthrough of both features).
