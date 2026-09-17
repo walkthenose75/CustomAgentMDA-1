@@ -14,7 +14,9 @@ steps in order. Each **VERIFY** gate must pass before you continue.
 
 **You ARE adding:**
 - Role-aware **suggested-prompt chips** that change per form (a chip bar above the chat).
-- **In-app prompt authoring** in the Administration app (edit each table's prompts, no code).
+- **In-app prompt authoring** in the Administration app — edit each table's prompts with no code.
+  Tables appear as **collapsible sections** (start collapsed, click to expand, plus Expand all /
+  Collapse all).
 - A per-session **config cache** and a **self-healing navigation** fix (chips follow form changes).
 - An additive Dataverse column, `maftagsc_prompts` (multiline text) on the existing
   `maftagsc_sidecarconfiguration` table. **No new table.**
